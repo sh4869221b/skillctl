@@ -54,7 +54,19 @@ pub fn list_skills(root: &Path) -> AppResult<Vec<String>> {
             )
         })?;
         let path = entry.path();
-        if path.is_dir()
+        let file_type = entry.file_type().map_err(|err| {
+            AppError::exec(
+                format!("ディレクトリを読み込めません: {}", root.display()),
+                Some(err.to_string()),
+            )
+        })?;
+        if file_type.is_symlink() {
+            return Err(AppError::exec(
+                format!("シンボリックリンクは未対応です: {}", path.display()),
+                Some("通常のディレクトリを配置してください".to_string()),
+            ));
+        }
+        if file_type.is_dir()
             && let Some(name) = path.file_name().and_then(|n| n.to_str())
         {
             skills.push(name.to_string());
@@ -173,6 +185,7 @@ mod tests {
 
     use super::*;
     use crate::config::{Config, DiffConfig, HashAlgo, HashConfig, Target};
+    use crate::error::AppError;
 
     fn make_config(global_root: PathBuf, target_root: PathBuf) -> Config {
         Config {
@@ -228,5 +241,20 @@ mod tests {
         assert_eq!(find_state("skill_diff"), State::Diff);
         assert_eq!(find_state("skill_missing"), State::Missing);
         assert_eq!(find_state("skill_extra"), State::Extra);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn list_skills_errors_on_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let dir = TempDir::new().unwrap();
+        let real = dir.path().join("real");
+        fs::create_dir_all(&real).unwrap();
+        let link = dir.path().join("link");
+        symlink(&real, &link).unwrap();
+
+        let err = list_skills(dir.path()).unwrap_err();
+        assert!(matches!(err, AppError::Exec { .. }));
     }
 }

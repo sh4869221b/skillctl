@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::fs;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 use globset::Glob;
@@ -82,14 +83,25 @@ impl Config {
     }
 
     pub fn load_from_path(path: &Path) -> AppResult<Self> {
-        let content = fs::read_to_string(path).map_err(|_| {
-            AppError::config(
-                format!("設定ファイルが見つかりません: {}", path.display()),
-                Some(format!(
-                    "{} を作成してから再実行してください",
-                    DEFAULT_CONFIG_PATH
-                )),
-            )
+        let content = fs::read_to_string(path).map_err(|err| {
+            let (message, hint) = match err.kind() {
+                ErrorKind::NotFound => (
+                    format!("設定ファイルが見つかりません: {}", path.display()),
+                    Some(format!(
+                        "{} を作成してから再実行してください",
+                        DEFAULT_CONFIG_PATH
+                    )),
+                ),
+                ErrorKind::PermissionDenied => (
+                    format!("設定ファイルを読み込めません: {}", path.display()),
+                    Some("ファイルの権限を確認してください".to_string()),
+                ),
+                _ => (
+                    format!("設定ファイルの読み込みに失敗しました: {}", path.display()),
+                    Some(err.to_string()),
+                ),
+            };
+            AppError::config(message, hint)
         })?;
         let mut config: Config = toml::from_str(&content).map_err(|err| {
             AppError::config(

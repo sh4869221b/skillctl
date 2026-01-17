@@ -230,7 +230,7 @@ fn diff_errors_when_missing() {
 }
 
 #[test]
-fn diff_errors_when_command_missing() {
+    fn diff_errors_when_command_missing() {
     let global_dir = TempDir::new().unwrap();
     let target_dir = TempDir::new().unwrap();
     let global_root = global_dir.path();
@@ -243,12 +243,31 @@ fn diff_errors_when_command_missing() {
     config.diff.command = vec!["__no_such_command__".to_string()];
     let target = &config.targets[0];
 
-    let err = run_diff(&config, target, "skill_diff").unwrap_err();
-    assert!(matches!(err, AppError::Exec { .. }));
-}
+        let err = run_diff(&config, target, "skill_diff").unwrap_err();
+        assert!(matches!(err, AppError::Exec { .. }));
+    }
 
-#[test]
-fn diff_runs_when_command_ok() {
+    #[cfg(unix)]
+    #[test]
+    fn diff_errors_when_exit_code_gt1() {
+        let global_dir = TempDir::new().unwrap();
+        let target_dir = TempDir::new().unwrap();
+        let global_root = global_dir.path();
+        let target_root = target_dir.path();
+
+        write_file(&global_root.join("skill_diff/file.txt"), "g");
+        write_file(&target_root.join("skill_diff/file.txt"), "t");
+
+        let mut config = make_config(global_root.to_path_buf(), target_root.to_path_buf());
+        config.diff.command = vec!["sh".to_string(), "-c".to_string(), "exit 2".to_string()];
+        let target = &config.targets[0];
+
+        let err = run_diff(&config, target, "skill_diff").unwrap_err();
+        assert!(matches!(err, AppError::Exec { .. }));
+    }
+
+    #[test]
+    fn diff_runs_when_command_ok() {
     let global_dir = TempDir::new().unwrap();
     let target_dir = TempDir::new().unwrap();
     let global_root = global_dir.path();

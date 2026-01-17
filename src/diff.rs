@@ -40,8 +40,18 @@ pub fn run_diff(config: &Config, target: &Target, skill: &str) -> AppResult<()> 
             Some(err.to_string()),
         )
     })?;
-    if !status.success() {
-        // diff は差分検出で非0を返すため、ここでは成功扱いにする
+    if let Some(code) = status.code() {
+        if code > 1 {
+            return Err(AppError::exec(
+                format!("diff コマンドが失敗しました (exit code: {})", code),
+                Some("diff.command を確認してください".to_string()),
+            ));
+        }
+    } else if !status.success() {
+        return Err(AppError::exec(
+            "diff コマンドが異常終了しました".to_string(),
+            Some("diff.command を確認してください".to_string()),
+        ));
     }
     Ok(())
 }
