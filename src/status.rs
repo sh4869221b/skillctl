@@ -185,7 +185,6 @@ mod tests {
 
     use super::*;
     use crate::config::{Config, DiffConfig, HashAlgo, HashConfig, Target};
-    use crate::error::AppError;
 
     fn make_config(global_root: PathBuf, target_root: PathBuf) -> Config {
         Config {
