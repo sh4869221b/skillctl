@@ -1,5 +1,7 @@
 # skillctl
 
+[![CI](https://github.com/sh4869221b/skillctl/actions/workflows/ci.yml/badge.svg)](https://github.com/sh4869221b/skillctl/actions/workflows/ci.yml)
+
 `skillctl` は、グローバル（正本）に集約した agent skills を、ユーザーが定義した
 ターゲットへコピー同期する CLI です。
 
