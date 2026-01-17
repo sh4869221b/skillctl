@@ -10,6 +10,7 @@
 ### 1. 設定ファイルを用意する
 
 既定の設定パスは `~/.config/skillctl/config.toml` です。
+`SKILLCTL_CONFIG` を指定すると、そのパスを優先します。
 
 ```toml
 global_root = "~/skills/global"

@@ -9,6 +9,7 @@ use serde::Deserialize;
 use crate::error::{AppError, AppResult};
 
 const DEFAULT_CONFIG_PATH: &str = "~/.config/skillctl/config.toml";
+const CONFIG_PATH_ENV: &str = "SKILLCTL_CONFIG";
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
@@ -78,7 +79,11 @@ impl Default for DiffConfig {
 
 impl Config {
     pub fn load_default() -> AppResult<Self> {
-        let path = expand_path(DEFAULT_CONFIG_PATH)?;
+        let path = if let Ok(path) = std::env::var(CONFIG_PATH_ENV) {
+            expand_path(&path)?
+        } else {
+            expand_path(DEFAULT_CONFIG_PATH)?
+        };
         Self::load_from_path(&path)
     }
 

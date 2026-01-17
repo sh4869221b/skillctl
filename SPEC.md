@@ -59,6 +59,7 @@
 ### 5.1 既定パス
 
 * `~/.config/skillctl/config.toml`
+* `SKILLCTL_CONFIG` 環境変数がある場合はそのパスを優先する
 
 ### 5.2 スキーマ（必須）
 

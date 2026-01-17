@@ -60,6 +60,7 @@
 ### 4.2 設定（config.toml）
 
 * 必須（global_root, targets）が揃っている → 正常ロード
+* `SKILLCTL_CONFIG` 指定時はそのパスを優先してロード
 * targets が空 → エラー
 * 不正な `hash.algo` → エラー
 * 不正な ignore glob → エラー
