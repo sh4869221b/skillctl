@@ -11,7 +11,7 @@
 1. 仕様変更がある場合は、先に `SPEC.md` を更新する
 2. 実装変更を行う
 3. `TESTPLAN.md` に基づきテストを追加/更新する
-4. `cargo fmt` / `cargo clippy` / `cargo test` を通す
+4. コミット前に `cargo fmt` / `cargo clippy` / `cargo test` を通す（別セッションでも必須）
 
 ---
 
