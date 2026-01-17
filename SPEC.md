@@ -33,7 +33,7 @@
 
 * **global_root**：正本 skills 置き場
 * **target**：同期先（任意に設定できる名前＋ルートパス）
-* **skill_id**：ディレクトリ名（例：`git-release`）
+* **skill_id**：ディレクトリ名（例：`git-release`）。パス区切りや `..`、絶対パスは不可
 * **digest**：ディレクトリの相対パス＋内容から算出したハッシュ
 * **state**：global と target の比較結果（missing/same/diff/extra）
 

@@ -7,6 +7,7 @@ use tempfile::TempDir;
 use crate::config::{Config, Target};
 use crate::digest::{build_ignore_set, digest_dir};
 use crate::error::{AppError, AppResult};
+use crate::skill::validate_skill_id;
 use crate::status::list_skills;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,11 +56,13 @@ pub fn plan_push(
             }
         }
         Selection::One(skill) => {
+            validate_skill_id(skill)?;
             skills.insert(skill.to_string());
         }
     }
 
     if let Selection::One(skill) = selection {
+        validate_skill_id(skill)?;
         let in_global = global_skills.iter().any(|s| s == skill);
         let in_target = target_skills.iter().any(|s| s == skill);
         if !in_global && (!prune || !in_target) {
@@ -146,11 +149,13 @@ pub fn plan_import(
             skills.extend(target_skills.iter().cloned());
         }
         Selection::One(skill) => {
+            validate_skill_id(skill)?;
             skills.insert(skill.to_string());
         }
     }
 
     if let Selection::One(skill) = selection {
+        validate_skill_id(skill)?;
         let in_target = target_skills.iter().any(|s| s == skill);
         if !in_target {
             return Err(AppError::exec(

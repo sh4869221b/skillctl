@@ -3,8 +3,10 @@ use std::process::Command;
 
 use crate::config::{Config, Target};
 use crate::error::{AppError, AppResult};
+use crate::skill::validate_skill_id;
 
 pub fn run_diff(config: &Config, target: &Target, skill: &str) -> AppResult<()> {
+    validate_skill_id(skill)?;
     let left = config.global_root.join(skill);
     let right = target.root.join(skill);
     if !left.is_dir() || !right.is_dir() {

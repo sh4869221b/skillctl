@@ -97,6 +97,20 @@ fn push_dry_run_is_immutable() {
 }
 
 #[test]
+fn push_rejects_invalid_skill_name() {
+    let global_dir = TempDir::new().unwrap();
+    let target_dir = TempDir::new().unwrap();
+    let config = make_config(
+        global_dir.path().to_path_buf(),
+        target_dir.path().to_path_buf(),
+    );
+    let target = &config.targets[0];
+
+    let err = plan_push(&config, target, Selection::One("../bad"), false).unwrap_err();
+    assert!(matches!(err, AppError::Config { .. }));
+}
+
+#[test]
 fn push_execute_converges() {
     let global_dir = TempDir::new().unwrap();
     let target_dir = TempDir::new().unwrap();
@@ -145,6 +159,20 @@ fn import_execute_add_only() {
 
     assert_eq!(before, after);
     assert!(global_root.join("skill_extra").is_dir());
+}
+
+#[test]
+fn import_rejects_invalid_skill_name() {
+    let global_dir = TempDir::new().unwrap();
+    let target_dir = TempDir::new().unwrap();
+    let config = make_config(
+        global_dir.path().to_path_buf(),
+        target_dir.path().to_path_buf(),
+    );
+    let target = &config.targets[0];
+
+    let err = plan_import(&config, target, Selection::One("../bad"), false).unwrap_err();
+    assert!(matches!(err, AppError::Config { .. }));
 }
 
 #[test]
@@ -227,6 +255,20 @@ fn diff_errors_when_missing() {
 
     let err = run_diff(&config, target, "skill_missing").unwrap_err();
     assert!(matches!(err, AppError::Exec { .. }));
+}
+
+#[test]
+fn diff_rejects_invalid_skill_name() {
+    let global_dir = TempDir::new().unwrap();
+    let target_dir = TempDir::new().unwrap();
+    let config = make_config(
+        global_dir.path().to_path_buf(),
+        target_dir.path().to_path_buf(),
+    );
+    let target = &config.targets[0];
+
+    let err = run_diff(&config, target, "../bad").unwrap_err();
+    assert!(matches!(err, AppError::Config { .. }));
 }
 
 #[test]

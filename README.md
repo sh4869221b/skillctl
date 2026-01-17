@@ -88,6 +88,7 @@ skillctl diff my-skill --target codex
 * `hash.ignore` に一致するファイルは digest 計算から除外
 * `status` は `missing / same / diff / extra` の 4 状態を出力
 * `--dry-run` はファイル操作ゼロ
+* skill 名は **ディレクトリ名のみ**（パス区切りや `..`、絶対パスは不可）
 
 ## 運用例
 
