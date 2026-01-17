@@ -22,7 +22,7 @@
 3. `cargo fmt` / `cargo clippy` / `cargo test` を実行する
 4. リリース用コミットを作成して `main` に push する
 5. `vX.Y.Z` タグを作成し push する（`release` ワークフローが起動）
-6. GitHub Actions の `release` 実行結果を確認する（リリース本文は `CHANGELOG.md` を使用）
+6. GitHub Actions の `release` 実行結果を確認する（リリース本文は `CHANGELOG.md` の該当バージョンのみを抽出して使用）
 
 ---
 

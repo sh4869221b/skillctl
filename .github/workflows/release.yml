@@ -52,7 +52,30 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: extract changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME}"
+          if [[ ! -f CHANGELOG.md ]]; then
+            echo "CHANGELOG.md が見つかりません" >&2
+            exit 1
+          fi
+          awk -v version="$VERSION" '
+            BEGIN { in_section=0; found=0 }
+            /^## / {
+              if (in_section) { exit }
+              if ($0 ~ "^## " version " ") { in_section=1; found=1; next }
+            }
+            in_section { print }
+            END {
+              if (!found) {
+                printf("CHANGELOG.md に %s のセクションがありません\n", version) > "/dev/stderr"
+                exit 1
+              }
+            }
+          ' CHANGELOG.md > release_notes.md
       - uses: softprops/action-gh-release@v2
         with:
-          body_path: CHANGELOG.md
+          body_path: release_notes.md
           files: dist/*
