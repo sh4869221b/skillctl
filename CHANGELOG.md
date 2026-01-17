@@ -1,8 +1,12 @@
 # Changelog
 
 ## Unreleased
+- TBD
+
+## v0.1.2 - 2026-01-17
 - changelog.md を CHANGELOG.md にリネーム
-- リリースノート参照を CHANGELOG.md に更新
+- リリースノートを CHANGELOG.md の該当バージョンから抽出して生成
+- リリース手順を AGENTS.md に明記
 
 ## v0.1.1 - 2026-01-17
 - skill 名の検証を追加し、パストラバーサルを防止
