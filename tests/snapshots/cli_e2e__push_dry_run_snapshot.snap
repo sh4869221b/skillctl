@@ -1,0 +1,8 @@
+---
+source: tests/cli_e2e.rs
+expression: stdout
+---
+update skill_diff
+prune skill_extra
+install skill_missing
+skip skill_same

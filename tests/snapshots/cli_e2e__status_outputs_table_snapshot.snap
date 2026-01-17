@@ -1,0 +1,9 @@
+---
+source: tests/cli_e2e.rs
+expression: stdout
+---
+SKILL          STATE    GLOBAL_DIGEST  TARGET_DIGEST
+skill_diff     diff     11b...dfb      bcc...ebe
+skill_extra    extra    -              af4...0a6
+skill_missing  missing  65e...ebc      -
+skill_same     same     d48...e36      d48...e36

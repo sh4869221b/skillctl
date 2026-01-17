@@ -17,3 +17,8 @@ tempfile = "3.24.0"
 thiserror = "2.0.17"
 toml = "0.9.11"
 walkdir = "2.5.0"
+
+[dev-dependencies]
+assert_cmd = "2.0.14"
+insta = "1.39.0"
+predicates = "3.1.0"
