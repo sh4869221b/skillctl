@@ -172,7 +172,9 @@ fn to_hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::time::{Duration, Instant};
 
+    use proptest::prelude::*;
     use tempfile::TempDir;
 
     use super::*;
@@ -212,5 +214,61 @@ mod tests {
         fs::write(dir.path().join("skip.tmp"), "changed").unwrap();
         let second = digest_dir(dir.path(), HashAlgo::Blake3, Some(&ignore)).unwrap();
         assert_eq!(first, second);
+    }
+
+    proptest! {
+        #[test]
+        fn digest_stable_for_same_content(bytes in proptest::collection::vec(any::<u8>(), 0..256)) {
+            let dir = TempDir::new().unwrap();
+            let path = dir.path().join("a.txt");
+            fs::write(&path, &bytes).unwrap();
+            let first = digest_dir(dir.path(), HashAlgo::Blake3, None).unwrap();
+            fs::write(&path, &bytes).unwrap();
+            let second = digest_dir(dir.path(), HashAlgo::Blake3, None).unwrap();
+            prop_assert_eq!(first, second);
+        }
+
+        #[test]
+        fn digest_changes_on_different_content(
+            a in proptest::collection::vec(any::<u8>(), 0..256),
+            b in proptest::collection::vec(any::<u8>(), 0..256),
+        ) {
+            prop_assume!(a != b);
+            let dir = TempDir::new().unwrap();
+            let path = dir.path().join("a.txt");
+            fs::write(&path, &a).unwrap();
+            let first = digest_dir(dir.path(), HashAlgo::Sha256, None).unwrap();
+            fs::write(&path, &b).unwrap();
+            let second = digest_dir(dir.path(), HashAlgo::Sha256, None).unwrap();
+            prop_assert_ne!(first, second);
+        }
+
+        #[test]
+        fn digest_order_independent(contents in proptest::collection::vec(proptest::collection::vec(any::<u8>(), 0..64), 1..8)) {
+            let dir_a = TempDir::new().unwrap();
+            let dir_b = TempDir::new().unwrap();
+
+            for (i, bytes) in contents.iter().enumerate() {
+                fs::write(dir_a.path().join(format!("file_{i}.txt")), bytes).unwrap();
+            }
+            for (i, bytes) in contents.iter().enumerate().rev() {
+                fs::write(dir_b.path().join(format!("file_{i}.txt")), bytes).unwrap();
+            }
+
+            let first = digest_dir(dir_a.path(), HashAlgo::Blake3, None).unwrap();
+            let second = digest_dir(dir_b.path(), HashAlgo::Blake3, None).unwrap();
+            prop_assert_eq!(first, second);
+        }
+    }
+
+    #[test]
+    fn digest_performance_smoke() {
+        let dir = TempDir::new().unwrap();
+        for i in 0..1000 {
+            fs::write(dir.path().join(format!("file_{i}.txt")), "x").unwrap();
+        }
+        let start = Instant::now();
+        let _ = digest_dir(dir.path(), HashAlgo::Blake3, None).unwrap();
+        assert!(start.elapsed() < Duration::from_secs(5));
     }
 }

@@ -32,6 +32,11 @@ fn write_file(path: &Path, contents: &str) {
     fs::write(path, contents).unwrap();
 }
 
+fn normalize_output(output: &[u8]) -> String {
+    let stdout = String::from_utf8_lossy(output).to_string();
+    stdout.replace("\r\n", "\n")
+}
+
 fn setup_fixture() -> (TempDir, PathBuf, PathBuf) {
     let root = TempDir::new().unwrap();
     let home = root.path().join("home");
@@ -59,7 +64,7 @@ fn status_outputs_table_snapshot() {
     cmd.env("HOME", root.path().join("home"));
     cmd.arg("status").arg("--target").arg("t1");
     let output = cmd.assert().success().get_output().stdout.clone();
-    let stdout = String::from_utf8_lossy(&output).to_string();
+    let stdout = normalize_output(&output);
     insta::assert_snapshot!(stdout);
 }
 
@@ -83,7 +88,7 @@ fn push_dry_run_snapshot() {
         .arg("--dry-run")
         .arg("--prune");
     let output = cmd.assert().success().get_output().stdout.clone();
-    let stdout = String::from_utf8_lossy(&output).to_string();
+    let stdout = normalize_output(&output);
     insta::assert_snapshot!(stdout);
 }
 
@@ -98,4 +103,30 @@ fn diff_rejects_invalid_skill_cli() {
         .failure()
         .code(3)
         .stderr(predicate::str::contains("skill が不正です"));
+}
+
+#[test]
+fn status_rejects_unknown_target() {
+    let (root, _global_root, _target_root) = setup_fixture();
+
+    let mut cmd = cargo_bin_cmd!("skillctl");
+    cmd.env("HOME", root.path().join("home"));
+    cmd.arg("status").arg("--target").arg("nope");
+    cmd.assert()
+        .failure()
+        .code(3)
+        .stderr(predicate::str::contains("ターゲットが見つかりません"));
+}
+
+#[test]
+fn status_errors_when_config_missing() {
+    let root = TempDir::new().unwrap();
+
+    let mut cmd = cargo_bin_cmd!("skillctl");
+    cmd.env("HOME", root.path());
+    cmd.arg("status").arg("--target").arg("t1");
+    cmd.assert()
+        .failure()
+        .code(3)
+        .stderr(predicate::str::contains("設定ファイルが見つかりません"));
 }

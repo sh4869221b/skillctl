@@ -136,6 +136,27 @@ fn push_execute_converges() {
     assert_eq!(lookup.remove("skill_diff"), Some(State::Same));
 }
 
+#[cfg(unix)]
+#[test]
+fn push_errors_when_target_not_writable() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let global_dir = TempDir::new().unwrap();
+    let target_dir = TempDir::new().unwrap();
+    let global_root = global_dir.path();
+    let target_root = target_dir.path();
+
+    write_file(&global_root.join("skill_missing/file.txt"), "m");
+    fs::set_permissions(target_root, fs::Permissions::from_mode(0o500)).unwrap();
+
+    let config = make_config(global_root.to_path_buf(), target_root.to_path_buf());
+    let target = &config.targets[0];
+    let plan = plan_push(&config, target, Selection::All, false).unwrap();
+    let err = execute_plan(&plan, false).unwrap_err();
+
+    assert!(matches!(err, AppError::Exec { .. }));
+}
+
 #[test]
 fn import_execute_add_only() {
     let global_dir = TempDir::new().unwrap();
