@@ -15,6 +15,17 @@
 
 ---
 
+## 2.1 リリース手順
+
+1. `CHANGELOG.md` の **Unreleased** を更新し、新バージョンのセクションを追加する
+2. `Cargo.toml` の `version` を更新する
+3. `cargo fmt` / `cargo clippy` / `cargo test` を実行する
+4. リリース用コミットを作成して `main` に push する
+5. `vX.Y.Z` タグを作成し push する（`release` ワークフローが起動）
+6. GitHub Actions の `release` 実行結果を確認する（リリース本文は `CHANGELOG.md` を使用）
+
+---
+
 ## 3. 安全性（本プロジェクト固有）
 
 * `--dry-run` は **ファイル操作ゼロ**であること（最重要）
