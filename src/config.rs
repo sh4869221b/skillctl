@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use globset::Glob;
 use serde::Deserialize;
 
 use crate::error::{AppError, AppResult};
@@ -119,6 +120,20 @@ impl Config {
     }
 
     fn validate(&self) -> AppResult<()> {
+        if self.diff.command.is_empty() {
+            return Err(AppError::config(
+                "diff.command が空です".to_string(),
+                Some("config.toml の diff.command を設定してください".to_string()),
+            ));
+        }
+        for pattern in &self.hash.ignore {
+            Glob::new(pattern).map_err(|err| {
+                AppError::config(
+                    format!("ignore パターンが不正です: {}", pattern),
+                    Some(err.to_string()),
+                )
+            })?;
+        }
         if self.targets.is_empty() {
             return Err(AppError::config(
                 "targets が空です".to_string(),
@@ -157,4 +172,186 @@ fn expand_path(path: &str) -> AppResult<PathBuf> {
 fn expand_path_pathbuf(path: &Path) -> AppResult<PathBuf> {
     let raw = path.to_string_lossy();
     expand_path(&raw)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+
+    use tempfile::TempDir;
+
+    use super::*;
+
+    fn write_config(dir: &TempDir, body: &str) -> PathBuf {
+        let path = dir.path().join("config.toml");
+        fs::write(&path, body).unwrap();
+        path
+    }
+
+    #[test]
+    fn config_errors_when_missing_global_root() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+[[targets]]
+name = "t1"
+root = "/tmp/skills"
+"#,
+        );
+        let err = Config::load_from_path(&path).unwrap_err();
+        assert!(matches!(err, AppError::Config { .. }));
+    }
+
+    #[test]
+    fn config_errors_when_missing_targets() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+global_root = "/tmp/global"
+"#,
+        );
+        let err = Config::load_from_path(&path).unwrap_err();
+        assert!(matches!(err, AppError::Config { .. }));
+    }
+
+    #[test]
+    fn config_errors_when_targets_empty() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+global_root = "/tmp/global"
+targets = []
+"#,
+        );
+        let err = Config::load_from_path(&path).unwrap_err();
+        assert!(matches!(err, AppError::Config { .. }));
+    }
+
+    #[test]
+    fn config_errors_when_target_name_duplicate() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+global_root = "/tmp/global"
+
+[[targets]]
+name = "t1"
+root = "/tmp/skills1"
+
+[[targets]]
+name = "t1"
+root = "/tmp/skills2"
+"#,
+        );
+        let err = Config::load_from_path(&path).unwrap_err();
+        assert!(matches!(err, AppError::Config { .. }));
+    }
+
+    #[test]
+    fn config_errors_when_hash_algo_invalid() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+global_root = "/tmp/global"
+
+[[targets]]
+name = "t1"
+root = "/tmp/skills"
+
+[hash]
+algo = "md5"
+"#,
+        );
+        let err = Config::load_from_path(&path).unwrap_err();
+        assert!(matches!(err, AppError::Config { .. }));
+    }
+
+    #[test]
+    fn config_errors_when_ignore_invalid() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+global_root = "/tmp/global"
+
+[[targets]]
+name = "t1"
+root = "/tmp/skills"
+
+[hash]
+ignore = ["["]
+"#,
+        );
+        let err = Config::load_from_path(&path).unwrap_err();
+        assert!(matches!(err, AppError::Config { .. }));
+    }
+
+    #[test]
+    fn config_errors_when_diff_command_empty() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+global_root = "/tmp/global"
+
+[[targets]]
+name = "t1"
+root = "/tmp/skills"
+
+[diff]
+command = []
+"#,
+        );
+        let err = Config::load_from_path(&path).unwrap_err();
+        assert!(matches!(err, AppError::Config { .. }));
+    }
+
+    #[test]
+    fn config_expands_tilde_paths() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+global_root = "~"
+
+[[targets]]
+name = "t1"
+root = "~"
+"#,
+        );
+
+        let config = Config::load_from_path(&path).unwrap();
+        let expected = PathBuf::from(shellexpand::full("~").unwrap().into_owned());
+        assert_eq!(config.global_root, expected);
+        assert_eq!(config.targets[0].root, expected);
+    }
+
+    #[test]
+    fn config_expands_env_paths() {
+        let Ok(home) = std::env::var("HOME") else {
+            return;
+        };
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+global_root = "$HOME"
+
+[[targets]]
+name = "t1"
+root = "$HOME"
+"#,
+        );
+
+        let config = Config::load_from_path(&path).unwrap();
+        let expected = PathBuf::from(home);
+        assert_eq!(config.global_root, expected);
+        assert_eq!(config.targets[0].root, expected);
+    }
 }

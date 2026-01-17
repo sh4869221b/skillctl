@@ -9,3 +9,6 @@ mod sync;
 
 pub use config::{Config, Target};
 pub use error::{AppError, AppResult};
+
+#[cfg(test)]
+mod integration_tests;
