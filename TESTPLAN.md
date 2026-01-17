@@ -1,132 +1,132 @@
-# TESTPLAN.md — skillctl テスト計画（MVP）
+# TESTPLAN.md — skillctl test plan (MVP)
 
-## 1. テスト目標
+## 1. Test goals
 
-* **内容 digest の安定性**を保証する（順序/mtime等に依存しない）
-* `status` が **missing/same/diff/extra** を正しく判定する
-* `--dry-run` が **不変**である（ファイル変更ゼロ）
-* `push/import` が仕様通りに **収束**する（same に一致する）
-* 外部 diff 起動の異常系が分かりやすい
-
----
-
-## 2. テスト範囲
-
-### 2.1 ユニットテスト
-
-* digest（ignore、安定化、変更検知）
-* 状態判定（集合演算、4状態）
-* 設定ロード（必須/任意、エラー）
-* プロパティテスト（digest の安定性/順序独立性）
-* パフォーマンス smoke（大量ファイルでも一定時間内）
-
-### 2.2 統合テスト（推奨：temp dir）
-
-* `global_root` と `target_root` を一時ディレクトリで構築して end-to-end を検証
-* CLI を直接叩かず、内部 API（status/plan/exec）を呼ぶ形でも可（実装都合で決定）
-* 権限/IO 失敗（書き込み不可ターゲット等）のエラーハンドリング
-
-### 2.3 CLI E2E テスト
-
-* `status`/`push --dry-run` の出力をスナップショットで検証
-* 無効な skill/target/設定欠如の CLI エラーを検証
+* Ensure **content digest stability** (independent of order/mtime)
+* `status` correctly determines **missing/same/diff/extra**
+* `--dry-run` is **immutable** (zero file changes)
+* `push/import` **converge** as specified
+* External diff launch failures are understandable
 
 ---
 
-## 3. テストデータセット（標準形）
+## 2. Test scope
 
-以下の skill を用意する（例）：
+### 2.1 Unit tests
 
-* `skill_same/`：global と target で同一内容
-* `skill_diff/`：1ファイル内容が異なる
-* `skill_missing/`：global にのみ存在
-* `skill_extra/`：target にのみ存在
+* Digest (ignore, stabilization, change detection)
+* State determination (set operations, 4 states)
+* Config loading (required/optional, error cases)
+* Property tests (digest stability/order independence)
+* Performance smoke (many files within reasonable time)
 
-ファイル構成は最小でよい（例：`SKILL.md` 1枚＋任意ファイル）。
+### 2.2 Integration tests (recommended: temp dir)
+
+* Build `global_root` and `target_root` in temp dirs for end-to-end checks
+* Either call internal APIs (status/plan/exec) or CLI (implementation choice)
+* Error handling for permission/IO failures (e.g. unwritable target)
+
+### 2.3 CLI E2E tests
+
+* Snapshot `status` / `push --dry-run` output
+* Validate CLI errors for invalid skill/target/missing config
 
 ---
 
-## 4. ユニットテスト詳細
+## 3. Test dataset (standard)
+
+Prepare these skills (example):
+
+* `skill_same/`: identical in global and target
+* `skill_diff/`: one file differs
+* `skill_missing/`: only in global
+* `skill_extra/`: only in target
+
+Keep the file structure minimal (e.g. a single `SKILL.md` plus an optional file).
+
+---
+
+## 4. Unit test details
 
 ### 4.1 digest
 
-* 同一内容・同一構成 → digest 一致
-* 1文字変更 → digest 不一致
-* ファイル追加/削除 → digest 不一致
-* ファイル列挙順序が変わっても digest が一致する
-* mtime 変更のみでは digest が変わらない
-* ignore パターンに一致するファイルの変更は digest に影響しない
+* Same content + structure → digest equal
+* One char change → digest different
+* File add/remove → digest different
+* Enumeration order does not affect digest
+* Changing mtime only does not affect digest
+* Changes to ignored files do not affect digest
 
-### 4.2 設定（config.toml）
+### 4.2 config (`config.toml`)
 
-* 必須（global_root, targets）が揃っている → 正常ロード
-* `SKILLCTL_CONFIG` 指定時はそのパスを優先してロード
-* `XDG_CONFIG_HOME` 指定時は `${XDG_CONFIG_HOME}/skillctl/config.toml` を参照する
-* `SKILLCTL_LANG=en` 指定時は英語メッセージになる
-* targets が空 → エラー
-* 不正な `hash.algo` → エラー
-* 不正な ignore glob → エラー
-* diff.command が空配列 → エラー（diff 実行時でも可。ただし挙動は仕様化する）
+* Required fields (global_root, targets) present → load succeeds
+* With `SKILLCTL_CONFIG`, load from that path
+* With `XDG_CONFIG_HOME`, read `${XDG_CONFIG_HOME}/skillctl/config.toml`
+* With `SKILLCTL_LANG=en`, messages are in English
+* Empty targets → error
+* Invalid `hash.algo` → error
+* Invalid ignore glob → error
+* Empty diff.command → error (or at diff execution; define in spec)
 
-### 4.3 状態判定
+### 4.3 state determination
 
-* 4状態（missing/same/diff/extra）を正しく判定する
-* skill 名の集合（global∪target）を網羅して結果を返す
-* digest 計算エラー（権限不足等）を適切に上位へ伝播する
+* Correctly determine 4 states (missing/same/diff/extra)
+* Return results for the union of skill names (global ∪ target)
+* Propagate digest errors (permission, etc.) properly
 
 ---
 
-## 5. 統合テスト詳細
+## 5. Integration test details
 
 ### 5.1 status end-to-end
 
-* 標準データセットを配置して `status` を実行し、期待通りの 4状態を得る
+* Run `status` with the standard dataset and get the expected 4 states
 
-### 5.2 push（dry-run）
+### 5.2 push (dry-run)
 
-* `push --dry-run` 実行前後で target の内容が **完全に不変**（ファイル数、内容、mtime まで厳密に見るかは方針決定）
-* 出力には install/update/skip が **漏れなく列挙**される
+* `push --dry-run` leaves target **completely unchanged** (file count/content; decide mtime strictness)
+* Output lists install/update/skip **without omission**
 
-### 5.3 push（実行）
+### 5.3 push (execute)
 
-* `push` 実行後、install/update 対象は `same` へ収束する
-* 既存ファイルが残骸として残らない（update で完全置換される）
-* `--prune` を有効にした場合、extra が削除される（MVPに入れる場合のみ）
+* After `push`, install/update targets converge to `same`
+* No leftover files after update (full replace)
+* With `--prune`, extras are removed (if included in MVP)
 
-### 5.4 import（dry-run）
+### 5.4 import (dry-run)
 
-* global の内容が不変である
-* 予定操作が install（＋overwrite 指定時 update）として列挙される
+* Global remains unchanged
+* Planned operations list install (and update when overwrite is set)
 
-### 5.5 import（実行）
+### 5.5 import (execute)
 
-* 既定：global に存在しない skill のみ追加される
-* `--overwrite`：同名 skill が置換され、同一（same）へ収束する
+* Default: only add skills missing in global
+* `--overwrite`: replace existing skill and converge to `same`
 
 ### 5.6 diff
 
-* diff.command が有効で、両側パスが存在 → diff が起動する（終了コード 0）
-* diff.command が **終了コード 2 以上** → エラー
-* 両側のどちらか欠損 → 分かりやすいエラー（次の行動：push/import を促す）
-* diff.command の実行ファイルが見つからない → 分かりやすいエラー
+* Valid diff.command and both paths exist → diff runs (exit code 0)
+* diff.command exit code **>= 2** → error
+* Missing path on either side → clear error with next action guidance (push/import)
+* diff.command executable missing → clear error
 
 ---
 
-## 6. 異常系テスト（最低限）
+## 6. Error cases (minimum)
 
-* target.root が存在しない（空扱いにするかエラーにするか仕様で固定し、テストに落とす）
-* global_root が存在しない（同上）
-* 権限不足（read_dir/copy/exec の失敗が適切に伝播）
-* 無効なターゲット名指定 → exit code 3
-* skill ディレクトリが **シンボリックリンク** → エラー
-* skill 名が **不正（../ やパス区切り）** → エラー
-* 設定ファイルが見つからない → exit code 3
+* target.root missing (define empty vs error in spec and test it)
+* global_root missing (same)
+* Permission errors (read_dir/copy/exec) propagate
+* Invalid target name → exit code 3
+* Skill directory is a **symlink** → error
+* Skill name is **invalid** (`../` or path separators) → error
+* Config file missing → exit code 3
 
 ---
 
-## 7. リリース前チェック（MVPゲート）
+## 7. Pre-release checks (MVP gate)
 
-* `cargo fmt` / `cargo clippy` / `cargo test` が通る
-* `status` の table 出力が崩れない（列・見出し）
-* dry-run の不変性が統合テストで担保されている
-* README に最低限の使い方（targets/status/push/import/diff）がある
+* `cargo fmt` / `cargo clippy` / `cargo test` pass
+* `status` table output is not broken (columns/headers)
+* Dry-run immutability is covered by integration tests
+* README has minimal usage (targets/status/push/import/diff)

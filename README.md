@@ -2,16 +2,18 @@
 
 [![CI](https://github.com/sh4869221b/skillctl/actions/workflows/ci.yml/badge.svg)](https://github.com/sh4869221b/skillctl/actions/workflows/ci.yml)
 
-`skillctl` は、グローバル（正本）に集約した agent skills を、ユーザーが定義した
-ターゲットへコピー同期する CLI です。
+For Japanese, see `README.ja.md`.
 
-## 使い方
+`skillctl` is a CLI that copies and synchronizes agent skills from a global
+(canonical) store to user-defined targets.
 
-### 1. 設定ファイルを用意する
+## Usage
 
-既定の設定パスは `XDG_CONFIG_HOME/skillctl/config.toml` です。
-`XDG_CONFIG_HOME` が未設定の場合は `~/.config/skillctl/config.toml` を使用します。
-`SKILLCTL_CONFIG` を指定すると、そのパスを優先します。
+### 1. Prepare a config file
+
+The default config path is `XDG_CONFIG_HOME/skillctl/config.toml`.
+If `XDG_CONFIG_HOME` is not set, `~/.config/skillctl/config.toml` is used.
+If `SKILLCTL_CONFIG` is set, its path takes precedence.
 
 ```toml
 global_root = "~/skills/global"
@@ -32,45 +34,45 @@ ignore = [".git/**", "**/.DS_Store", "**/*.tmp"]
 command = ["git", "diff", "--no-index", "--", "{left}", "{right}"]
 ```
 
-### 2. インストール / ビルド
+### 2. Install / build
 
 ```bash
-# ビルド
+# Build
 cargo build
 
-# 実行（cargo run）
+# Run (cargo run)
 cargo run -- status --target codex
 
-# リリースビルド
+# Release build
 cargo build --release
 ```
 
-### 3. コマンド例
+### 3. Command examples
 
-以下の例は、上記の `global_root = "~/skills/global"` と
-`targets.name = "codex"`（`root = "~/.codex/skills"`）を前提としています。
+The examples below assume `global_root = "~/skills/global"` and
+`targets.name = "codex"` (`root = "~/.codex/skills"`).
 
 ```bash
-# ターゲット一覧
+# List targets
 skillctl targets
 
-# スキル一覧（global）
+# List skills (global)
 skillctl list --global
 
-# スキル一覧（target）
+# List skills (target)
 skillctl list --target codex
 
-# 状態確認（単一ターゲット）
+# Status (single target)
 skillctl status --target codex
 
-# 状態確認（全ターゲット）
+# Status (all targets)
 skillctl status --all
 
-# 同期（global -> target）
+# Sync (global -> target)
 skillctl push my-skill --target codex
 skillctl push --all --target codex
 
-# 取り込み（target -> global）
+# Import (target -> global)
 skillctl import my-skill --from codex
 skillctl import --all --from codex
 
@@ -78,57 +80,57 @@ skillctl import --all --from codex
 skillctl diff my-skill --target codex
 ```
 
-### オプション
+### Options
 
-* `--dry-run`：操作予定の列挙のみ（ファイル操作は行わない）
-* `--prune`：`push` 時に target の extra を削除対象に含める
-* `--overwrite`：`import` 時に global を置換する
+* `--dry-run`: list planned operations only (no file changes)
+* `--prune`: include target extras for removal during `push`
+* `--overwrite`: replace global during `import`
 
-### 環境変数
+### Environment variables
 
-* `SKILLCTL_CONFIG`：設定ファイルのパスを明示指定（最優先）
-* `SKILLCTL_LANG`：メッセージ言語（`ja` / `en`）
-  - 未指定時は `LC_ALL` / `LC_MESSAGES` / `LANG` を参照
-  - 未対応値は `ja` 扱い
+* `SKILLCTL_CONFIG`: explicit config path (highest priority)
+* `SKILLCTL_LANG`: message language (`ja` / `en`)
+  - Falls back to `LC_ALL` / `LC_MESSAGES` / `LANG`
+  - Unsupported values default to `ja`
 
-## 振る舞いのポイント
+## Behavior notes
 
-* digest は **相対パス＋内容**で計算し、ファイル名や内容の変更は差分扱い
-* `hash.ignore` に一致するファイルは digest 計算から除外
-* `status` は `missing / same / diff / extra` の 4 状態を出力
-* `--dry-run` はファイル操作ゼロ
-* skill 名は **ディレクトリ名のみ**（パス区切りや `..`、絶対パスは不可）
+* Digest is computed from **relative path + content** (rename or content change is diff)
+* Files matching `hash.ignore` are excluded from digest
+* `status` reports four states: `missing / same / diff / extra`
+* `--dry-run` performs zero file operations
+* Skill names must be **directory names only** (no separators, `..`, or absolute paths)
 
-## 運用例
+## Operations
 
 ```bash
-# まず状態を確認
+# Check status
 skillctl status --target codex
 
-# 予定操作を確認（dry-run）
+# Inspect planned ops (dry-run)
 skillctl push --all --target codex --dry-run
 
-# 実行（install/update）
+# Execute (install/update)
 skillctl push --all --target codex
 
-# 差分が残っていれば diff で確認
+# If differences remain, use diff
 skillctl diff my-skill --target codex
 ```
 
-## トラブルシュート
+## Troubleshooting
 
-* `設定ファイルが見つかりません` が出る  
-  - `XDG_CONFIG_HOME/skillctl/config.toml` または `SKILLCTL_CONFIG` で指定したパスを作成して再実行してください
-* `ターゲットが見つかりません` が出る  
-  - `skillctl targets` で利用可能なターゲット名を確認してください
-* `root が存在しません` が出る  
-  - `config.toml` の `global_root` / `targets[].root` を確認してください
-* `diff の対象パスが存在しません` が出る  
-  - `push` / `import` で同期後に `diff` を実行してください
+* `Config file not found` appears
+  - Create `XDG_CONFIG_HOME/skillctl/config.toml` or the path set in `SKILLCTL_CONFIG`
+* `Target not found` appears
+  - Run `skillctl targets` to see available target names
+* `Root does not exist` appears
+  - Check `global_root` / `targets[].root` in `config.toml`
+* `Diff target path does not exist` appears
+  - Run `push` / `import` before `diff`
 
-## 終了コード
+## Exit codes
 
-* `0`：正常
-* `2`：CLI 引数不正
-* `3`：設定不正（config 不在/解析不能/ターゲット未定義など）
-* `4`：実行エラー（コピー失敗、diff 起動失敗など）
+* `0`: success
+* `2`: invalid CLI arguments
+* `3`: config errors (missing/invalid config, unknown target, etc.)
+* `4`: execution errors (copy failure, diff launch failure, etc.)

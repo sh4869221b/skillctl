@@ -1,194 +1,196 @@
-# SPEC.md — skillctl 仕様（MVP → v1）
+# SPEC.md — skillctl specification (MVP → v1)
 
-## 1. 概要
+## 1. Overview
 
-`skillctl` は、**グローバル（正本）**に集約した agent skills を、ユーザーが自由に定義した **ターゲット（name + root directory）**へ **コピー同期**する CLI です。
+`skillctl` is a CLI that **copies and synchronizes** agent skills from a
+**global (canonical)** store to user-defined **targets (name + root directory)**.
 
-* **管理単位**：`<root>/<skill_id>/...` の **ディレクトリ**
-* **同一性判定**：**相対パス＋内容**に基づくディレクトリ digest（ハッシュ）
-* **差分確認**：外部 diff ツールを設定して起動
-* **安全機構**：`--dry-run` のみ（操作予定の完全列挙、ファイル操作はゼロ）
-
----
-
-## 2. ゴール / 非ゴール
-
-### 2.1 ゴール
-
-* グローバル正本とターゲットの **差分状態**を可視化できる
-* グローバル正本からターゲットへ **収束**（install/update/skip）できる
-* 必要に応じてターゲットからグローバルへ **取り込み**できる（既定は追加のみ）
-* 差分がある skill を **diff ツールで比較**できる
-
-### 2.2 非ゴール（MVPでは対象外）
-
-* 3-way merge 等の競合解決
-* 自動バックアップ、対話確認（interactive）
-* リモート取得（GitHub 等から直接インストール）
-* 監視・常駐・自動同期
+* **Unit of management**: **directory** at `<root>/<skill_id>/...`
+* **Identity check**: directory digest based on **relative path + content**
+* **Diff inspection**: run an external diff tool
+* **Safety**: `--dry-run` only (complete plan listing, zero file operations)
 
 ---
 
-## 3. 用語
+## 2. Goals / non-goals
 
-* **global_root**：正本 skills 置き場
-* **target**：同期先（任意に設定できる名前＋ルートパス）
-* **skill_id**：ディレクトリ名（例：`git-release`）。パス区切りや `..`、絶対パスは不可
-* **digest**：ディレクトリの相対パス＋内容から算出したハッシュ
-* **state**：global と target の比較結果（missing/same/diff/extra）
+### 2.1 Goals
+
+* Visualize **diff states** between global and target
+* Converge from global to target (**install/update/skip**)
+* Import from target to global when needed (default: add-only)
+* Compare a diffing skill via **diff tool**
+
+### 2.2 Non-goals (out of scope for MVP)
+
+* Conflict resolution such as 3-way merge
+* Automatic backups or interactive confirmations
+* Remote fetch (e.g. direct install from GitHub)
+* Watch/daemon/autosync
 
 ---
 
-## 4. ディレクトリモデル
+## 3. Terms
 
-### 4.1 グローバル（正本）
+* **global_root**: canonical skills directory
+* **target**: sync destination (user-defined name + root path)
+* **skill_id**: directory name (e.g. `git-release`). No separators, `..`, or absolute paths
+* **digest**: hash computed from relative paths + contents in a directory
+* **state**: comparison result between global and target (missing/same/diff/extra)
+
+---
+
+## 4. Directory model
+
+### 4.1 Global (canonical)
 
 * `global_root/<skill_id>/...`
-* `skill_id` は **通常のディレクトリ**であること（シンボリックリンクは不可）
+* `skill_id` must be a **normal directory** (no symlinks)
 
-### 4.2 ターゲット（同期先）
+### 4.2 Target
 
 * `targets[].root/<skill_id>/...`
 
-※ Codex/OpenCode 固有の探索パスは **このツールの前提ではない**（あくまでターゲットの例として登録できる）。
+Codex/OpenCode-specific discovery paths are **not** assumed by this tool
+(targets are fully user-defined).
 
 ---
 
-## 5. 設定（config.toml）
+## 5. Configuration (`config.toml`)
 
-### 5.1 既定パス
+### 5.1 Default path
 
-優先順位は以下の通り。
+Priority order:
 
-1. `SKILLCTL_CONFIG` 環境変数がある場合はそのパスを使用
-2. `XDG_CONFIG_HOME` がある場合は `${XDG_CONFIG_HOME}/skillctl/config.toml`
-3. それ以外は `~/.config/skillctl/config.toml`
+1. Use `SKILLCTL_CONFIG` if set
+2. If `XDG_CONFIG_HOME` is set, `${XDG_CONFIG_HOME}/skillctl/config.toml`
+3. Otherwise `~/.config/skillctl/config.toml`
 
-### 5.2 スキーマ（必須）
+### 5.2 Required schema
 
 * `global_root: string`
 * `targets: array`
 
-  * `name: string`（一意）
+  * `name: string` (unique)
   * `root: string`
 
-### 5.3 スキーマ（任意）
+### 5.3 Optional schema
 
 * `[hash]`
 
-  * `algo: "blake3" | "sha256"`（既定：`blake3`）
-  * `ignore: string[]`（glob パターン。既定：空）
+  * `algo: "blake3" | "sha256"` (default: `blake3`)
+  * `ignore: string[]` (glob patterns, default: empty)
 * `[diff]`
 
-  * `command: string[]`（argv 形式。既定：`git diff --no-index -- {left} {right}`）
+  * `command: string[]` (argv form, default: `git diff --no-index -- {left} {right}`)
 
-### 5.4 パス展開
+### 5.4 Path expansion
 
-* `~` と環境変数（`$VAR` / `${VAR}`）を展開して解決する
+* Expand `~` and environment variables (`$VAR` / `${VAR}`)
 
-### 5.5 メッセージ言語
+### 5.5 Message language
 
-* `SKILLCTL_LANG` があれば `ja` / `en` を選択する
-* 未指定時は `LC_ALL` / `LC_MESSAGES` / `LANG` を参照する
-* 未対応の値は `ja` 扱い
+* If `SKILLCTL_LANG` is set, choose `ja` / `en`
+* Otherwise check `LC_ALL` / `LC_MESSAGES` / `LANG`
+* Unsupported values default to `ja`
 
 ---
 
-## 6. Digest（相対パス＋内容ハッシュ）仕様
+## 6. Digest specification (relative path + content)
 
-### 6.1 対象
+### 6.1 Scope
 
-* skill ディレクトリ配下の **通常ファイル**
-* **相対パス**（安定化ルールに従い正規化）
-* **内容**（バイト列）
-* **シンボリックリンクは対象外**（エラー）
+* **Regular files** under a skill directory
+* **Relative path** (normalized per stabilization rules)
+* **Content** (raw bytes)
+* **Symlinks are not supported** (error)
 
-### 6.2 不含（ハッシュに含めない）
+### 6.2 Excluded from hash
 
-* mtime、所有者、パーミッションなどメタデータ
-* ディレクトリの列挙順（順序は正規化する）
+* Metadata such as mtime, owner, permissions
+* Directory enumeration order (order is normalized)
 
-### 6.3 安定化ルール
+### 6.3 Stabilization rules
 
-1. `ignore` 適用後の対象ファイルを列挙
-2. **相対パス昇順**にソート
-3. ハッシュ入力に「相対パス」と「内容」を投入（ファイル名の変更も差分扱い）
+1. Enumerate files after applying `ignore`
+2. Sort by **relative path ascending**
+3. Feed **relative path + content** into the hash (renames are diffs)
 
 ### 6.4 ignore
 
-* `hash.ignore` の glob に一致する相対パスは除外する
-* 既定の推奨（例）：`.git/**`, `**/.DS_Store`, `**/*.tmp`
+* Files matching `hash.ignore` globs are excluded
+* Recommended defaults (example): `.git/**`, `**/.DS_Store`, `**/*.tmp`
 
 ---
 
-## 7. 状態判定（status）
+## 7. State determination (`status`)
 
-### 7.1 状態
+### 7.1 States
 
-* `missing`：global にあり target にない
-* `same`：双方にあり digest 一致
-* `diff`：双方にあり digest 不一致
-* `extra`：target にのみ存在（global にない）
+* `missing`: exists in global, not in target
+* `same`: exists in both, digest matches
+* `diff`: exists in both, digest differs
+* `extra`: exists only in target (not in global)
 
-### 7.2 出力（table 既定）
+### 7.2 Output (default: table)
 
-* 列：`SKILL | STATE | GLOBAL_DIGEST | TARGET_DIGEST`
-* digest は短縮表示可（例：先頭3 + 末尾3）
+* Columns: `SKILL | STATE | GLOBAL_DIGEST | TARGET_DIGEST`
+* Digest may be shortened (e.g. first 3 + last 3)
 
 ---
 
-## 8. 同期（push / import）仕様
+## 8. Sync specification (`push` / `import`)
 
-* push/import は **Plan（差分・操作計画）→ Execute（実行）** の二段階を分離する
+`push` and `import` must separate **Plan (diff/ops)** and **Execute**.
 
-### 8.1 push（global → target）
+### 8.1 push (global → target)
 
-* 入力：`<skill_id>` または `--all`、`--target <name>`
-* 判定：
+* Input: `<skill_id>` or `--all`, `--target <name>`
+* Decisions:
 
   * `missing` → **install**
   * `diff` → **update**
   * `same` → **skip**
-* 更新方式（実装要件）：
+* Update method (implementation requirement):
 
-  * 一時領域へコピー完了後に置換する（途中状態を残さない）
-* `--dry-run`：
+  * Copy to a temp location, then replace (no partial state)
+* `--dry-run`:
 
-  * install/update/skip（＋必要なら prune）を **完全列挙**する
-  * ファイル操作は行わない
+  * List install/update/skip (+ prune if applicable)
+  * No file operations
 
-#### `--prune`（任意）
+#### `--prune` (optional)
 
-* target にのみ存在する skill（`extra`）を削除対象に含める
-* 既定は prune しない（安全寄り）
+* Include target-only skills (`extra`) for removal
+* Default is not to prune (safer)
 
-### 8.2 import（target → global）
+### 8.2 import (target → global)
 
-* 入力：`<skill_id>` または `--all`、`--from <name>`
-* 既定挙動：
+* Input: `<skill_id>` or `--all`, `--from <name>`
+* Default behavior:
 
-  * global に存在しない skill のみ **取り込み（install）**
-* `--overwrite`：
+  * Import only skills missing in global (**install**)
+* `--overwrite`:
 
-  * 同名が存在しても global を置換する（明示時のみ）
-* `--dry-run`：
+  * Replace global if same-name exists (explicit only)
+* `--dry-run`:
 
-  * 予定操作を列挙し、ファイル操作は行わない
-
----
-
-## 9. diff 仕様
-
-* `diff.command`（argv 配列）に `{left}` `{right}` プレースホルダを用意
-* `skillctl diff <skill> --target <name>` 実行時に置換して起動
-* どちらかのパスが存在しない場合はエラー（次の行動を示すメッセージを出す）
-* diff の終了コードは **0/1 を成功扱い**、それ以外はエラー
+  * List planned ops, no file operations
 
 ---
 
-## 10. CLI コマンド仕様（MVP）
+## 9. diff specification
 
-### 10.1 コマンド一覧
+* `diff.command` is argv with `{left}` `{right}` placeholders
+* `skillctl diff <skill> --target <name>` replaces placeholders and runs it
+* If either path is missing, return an error with next action guidance
+* Diff exit codes: treat **0/1 as success**, others as error
+
+---
+
+## 10. CLI commands (MVP)
+
+### 10.1 Command list
 
 * `targets`
 * `list --global | --target <name>`
@@ -197,28 +199,28 @@
 * `import [<skill>|--all] --from <name> [--dry-run] [--overwrite]`
 * `diff <skill> --target <name>`
 
-### 10.2 終了コード
+### 10.2 Exit codes
 
-* `0`：正常
-* `2`：CLI 引数不正
-* `3`：設定不正（config 不在/解析不能/ターゲット未定義など）
-* `4`：実行エラー（コピー失敗、diff 起動失敗など）
-
----
-
-## 11. 受け入れ基準（MVP）
-
-* `status` が 4状態を正しく出せる
-* `push --dry-run` が予定操作を漏れなく列挙し、ファイルが一切変化しない
-* `push` 実行後、対象 skill は `same` に収束する
-* `import` は既定で追加のみ、`--overwrite` で置換できる
-* `diff` が設定コマンドを起動できる
+* `0`: success
+* `2`: invalid CLI arguments
+* `3`: config errors (missing/invalid config, unknown target, etc.)
+* `4`: execution errors (copy failure, diff launch failure, etc.)
 
 ---
 
-## 12. v1 の拡張候補（参考）
+## 11. Acceptance criteria (MVP)
+
+* `status` outputs all four states correctly
+* `push --dry-run` lists planned ops and makes zero file changes
+* After `push`, target skills converge to `same`
+* `import` defaults to add-only, `--overwrite` replaces
+* `diff` can run the configured command
+
+---
+
+## 12. v1 ideas (reference)
 
 * `status --format json`
-* `doctor`（SKILL.md 有無、命名規約チェック等）
-* digest キャッシュ（性能改善）
-* フィルタ（diff のみ表示など）
+* `doctor` (SKILL.md presence, naming conventions, etc.)
+* Digest cache (performance)
+* Filters (e.g. diff-only view)
