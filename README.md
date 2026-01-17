@@ -84,7 +84,7 @@ skillctl diff my-skill --target codex
 
 ## 振る舞いのポイント
 
-* digest は **内容のみ**で計算し、ファイル名や内容の変更は差分扱い
+* digest は **相対パス＋内容**で計算し、ファイル名や内容の変更は差分扱い
 * `hash.ignore` に一致するファイルは digest 計算から除外
 * `status` は `missing / same / diff / extra` の 4 状態を出力
 * `--dry-run` はファイル操作ゼロ
