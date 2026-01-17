@@ -37,6 +37,33 @@ fn normalize_output(output: &[u8]) -> String {
     stdout.replace("\r\n", "\n")
 }
 
+fn set_home_env(cmd: &mut assert_cmd::Command, home: &Path) {
+    let home_str = home.to_string_lossy().to_string();
+    cmd.env("HOME", &home_str);
+    cmd.env("USERPROFILE", &home_str);
+    if cfg!(windows) {
+        if let Some((drive, rest)) = split_windows_drive(&home_str) {
+            cmd.env("HOMEDRIVE", drive);
+            cmd.env("HOMEPATH", rest);
+        }
+    }
+}
+
+fn split_windows_drive(path: &str) -> Option<(String, String)> {
+    let bytes = path.as_bytes();
+    if bytes.len() < 2 || bytes[1] != b':' {
+        return None;
+    }
+    let drive = path[..2].to_string();
+    let mut rest = path[2..].to_string();
+    if rest.is_empty() {
+        rest = "\\".to_string();
+    } else if !rest.starts_with('\\') && !rest.starts_with('/') {
+        rest = format!("\\{rest}");
+    }
+    Some((drive, rest))
+}
+
 fn setup_fixture() -> (TempDir, PathBuf, PathBuf) {
     let root = TempDir::new().unwrap();
     let home = root.path().join("home");
@@ -61,7 +88,7 @@ fn status_outputs_table_snapshot() {
     write_file(&target_root.join("skill_extra/file.txt"), "e");
 
     let mut cmd = cargo_bin_cmd!("skillctl");
-    cmd.env("HOME", root.path().join("home"));
+    set_home_env(&mut cmd, &root.path().join("home"));
     cmd.arg("status").arg("--target").arg("t1");
     let output = cmd.assert().success().get_output().stdout.clone();
     let stdout = normalize_output(&output);
@@ -80,7 +107,7 @@ fn push_dry_run_snapshot() {
     write_file(&target_root.join("skill_extra/file.txt"), "e");
 
     let mut cmd = cargo_bin_cmd!("skillctl");
-    cmd.env("HOME", root.path().join("home"));
+    set_home_env(&mut cmd, &root.path().join("home"));
     cmd.arg("push")
         .arg("--all")
         .arg("--target")
@@ -97,7 +124,7 @@ fn diff_rejects_invalid_skill_cli() {
     let (root, _global_root, _target_root) = setup_fixture();
 
     let mut cmd = cargo_bin_cmd!("skillctl");
-    cmd.env("HOME", root.path().join("home"));
+    set_home_env(&mut cmd, &root.path().join("home"));
     cmd.arg("diff").arg("../bad").arg("--target").arg("t1");
     cmd.assert()
         .failure()
@@ -110,7 +137,7 @@ fn status_rejects_unknown_target() {
     let (root, _global_root, _target_root) = setup_fixture();
 
     let mut cmd = cargo_bin_cmd!("skillctl");
-    cmd.env("HOME", root.path().join("home"));
+    set_home_env(&mut cmd, &root.path().join("home"));
     cmd.arg("status").arg("--target").arg("nope");
     cmd.assert()
         .failure()
@@ -123,7 +150,7 @@ fn status_errors_when_config_missing() {
     let root = TempDir::new().unwrap();
 
     let mut cmd = cargo_bin_cmd!("skillctl");
-    cmd.env("HOME", root.path());
+    set_home_env(&mut cmd, root.path());
     cmd.arg("status").arg("--target").arg("t1");
     cmd.assert()
         .failure()
