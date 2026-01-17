@@ -40,6 +40,7 @@ fn normalize_output(output: &[u8]) -> String {
 
 fn set_config_env(cmd: &mut assert_cmd::Command, path: &Path) {
     cmd.env("SKILLCTL_CONFIG", path);
+    cmd.env("SKILLCTL_LANG", "ja");
 }
 
 fn setup_fixture() -> (TempDir, PathBuf, PathBuf, PathBuf) {

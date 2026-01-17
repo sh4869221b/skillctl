@@ -43,27 +43,46 @@ pub fn list_skills(root: &Path) -> AppResult<Vec<String>> {
     let mut skills = Vec::new();
     for entry in fs::read_dir(root).map_err(|err| {
         AppError::config(
-            format!("ディレクトリを読み込めません: {}", root.display()),
+            crate::tr!(
+                "ディレクトリを読み込めません: {}",
+                "Cannot read directory: {}",
+                root.display()
+            ),
             Some(err.to_string()),
         )
     })? {
         let entry = entry.map_err(|err| {
             AppError::config(
-                format!("ディレクトリを読み込めません: {}", root.display()),
+                crate::tr!(
+                    "ディレクトリを読み込めません: {}",
+                    "Cannot read directory: {}",
+                    root.display()
+                ),
                 Some(err.to_string()),
             )
         })?;
         let path = entry.path();
         let file_type = entry.file_type().map_err(|err| {
             AppError::exec(
-                format!("ディレクトリを読み込めません: {}", root.display()),
+                crate::tr!(
+                    "ディレクトリを読み込めません: {}",
+                    "Cannot read directory: {}",
+                    root.display()
+                ),
                 Some(err.to_string()),
             )
         })?;
         if file_type.is_symlink() {
             return Err(AppError::exec(
-                format!("シンボリックリンクは未対応です: {}", path.display()),
-                Some("通常のディレクトリを配置してください".to_string()),
+                crate::tr!(
+                    "シンボリックリンクは未対応です: {}",
+                    "Symlinks are not supported: {}",
+                    path.display()
+                ),
+                Some(crate::tr!(
+                    "通常のディレクトリを配置してください",
+                    "Use a normal directory."
+                )),
             ));
         }
         if file_type.is_dir()
@@ -130,7 +149,10 @@ pub fn render_status_table(rows: &[StatusRow]) -> AppResult<String> {
     let mut tw = TabWriter::new(vec![]);
     writeln!(tw, "SKILL\tSTATE\tGLOBAL_DIGEST\tTARGET_DIGEST").map_err(|err| {
         AppError::exec(
-            "status 出力の整形に失敗しました".to_string(),
+            crate::tr!(
+                "status 出力の整形に失敗しました",
+                "Failed to format status output"
+            ),
             Some(err.to_string()),
         )
     })?;
@@ -147,20 +169,29 @@ pub fn render_status_table(rows: &[StatusRow]) -> AppResult<String> {
             .unwrap_or_else(|| "-".to_string());
         writeln!(tw, "{}\t{}\t{}\t{}", row.skill, row.state, g, t).map_err(|err| {
             AppError::exec(
-                "status 出力の整形に失敗しました".to_string(),
+                crate::tr!(
+                    "status 出力の整形に失敗しました",
+                    "Failed to format status output"
+                ),
                 Some(err.to_string()),
             )
         })?;
     }
     let output = tw.into_inner().map_err(|err| {
         AppError::exec(
-            "status 出力の整形に失敗しました".to_string(),
+            crate::tr!(
+                "status 出力の整形に失敗しました",
+                "Failed to format status output"
+            ),
             Some(err.to_string()),
         )
     })?;
     String::from_utf8(output).map_err(|err| {
         AppError::exec(
-            "status 出力の整形に失敗しました".to_string(),
+            crate::tr!(
+                "status 出力の整形に失敗しました",
+                "Failed to format status output"
+            ),
             Some(err.to_string()),
         )
     })
@@ -169,8 +200,15 @@ pub fn render_status_table(rows: &[StatusRow]) -> AppResult<String> {
 fn ensure_root_dir(root: &Path) -> AppResult<()> {
     if !root.is_dir() {
         return Err(AppError::config(
-            format!("root が存在しません: {}", root.display()),
-            Some("config.toml のパスを確認してください".to_string()),
+            crate::tr!(
+                "root が存在しません: {}",
+                "Root does not exist: {}",
+                root.display()
+            ),
+            Some(crate::tr!(
+                "config.toml のパスを確認してください",
+                "Check paths in config.toml"
+            )),
         ));
     }
     Ok(())

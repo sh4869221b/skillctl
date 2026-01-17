@@ -84,9 +84,9 @@ pub fn run() -> ExitCode {
     match execute(cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
-            eprintln!("error: {}", err);
+            eprintln!("{}", crate::tr!("エラー: {}", "error: {}", err));
             if let Some(hint) = err.hint() {
-                eprintln!("help: {}", hint);
+                eprintln!("{}", crate::tr!("ヒント: {}", "help: {}", hint));
             }
             err.exit_code()
         }
@@ -107,8 +107,11 @@ fn execute(cli: Cli) -> AppResult<()> {
             } else {
                 let name = target.ok_or_else(|| {
                     AppError::config(
-                        "target が指定されていません".to_string(),
-                        Some("list --target <name> を指定してください".to_string()),
+                        crate::tr!("target が指定されていません", "target is not specified"),
+                        Some(crate::tr!(
+                            "list --target <name> を指定してください",
+                            "Specify list --target <name>"
+                        )),
                     )
                 })?;
                 &config.target_by_name(&name)?.root
@@ -121,7 +124,7 @@ fn execute(cli: Cli) -> AppResult<()> {
         Commands::Status { target, all } => {
             if all {
                 for t in &config.targets {
-                    println!("Target: {}", t.name);
+                    println!("{}", crate::tr!("ターゲット: {}", "Target: {}", t.name));
                     let rows = status_for_target(&config, t)?;
                     let table = render_status_table(&rows)?;
                     print!("{}", table);
@@ -129,8 +132,11 @@ fn execute(cli: Cli) -> AppResult<()> {
             } else {
                 let name = target.ok_or_else(|| {
                     AppError::config(
-                        "target が指定されていません".to_string(),
-                        Some("status --target <name> を指定してください".to_string()),
+                        crate::tr!("target が指定されていません", "target is not specified"),
+                        Some(crate::tr!(
+                            "status --target <name> を指定してください",
+                            "Specify status --target <name>"
+                        )),
                     )
                 })?;
                 let target = config.target_by_name(&name)?;
@@ -152,8 +158,11 @@ fn execute(cli: Cli) -> AppResult<()> {
             } else {
                 Selection::One(skill.as_deref().ok_or_else(|| {
                     AppError::config(
-                        "skill が指定されていません".to_string(),
-                        Some("push <skill> を指定してください".to_string()),
+                        crate::tr!("skill が指定されていません", "skill is not specified"),
+                        Some(crate::tr!(
+                            "push <skill> を指定してください",
+                            "Specify push <skill>"
+                        )),
                     )
                 })?)
             };
@@ -176,8 +185,11 @@ fn execute(cli: Cli) -> AppResult<()> {
             } else {
                 Selection::One(skill.as_deref().ok_or_else(|| {
                     AppError::config(
-                        "skill が指定されていません".to_string(),
-                        Some("import <skill> を指定してください".to_string()),
+                        crate::tr!("skill が指定されていません", "skill is not specified"),
+                        Some(crate::tr!(
+                            "import <skill> を指定してください",
+                            "Specify import <skill>"
+                        )),
                     )
                 })?)
             };

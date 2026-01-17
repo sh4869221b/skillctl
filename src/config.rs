@@ -92,18 +92,34 @@ impl Config {
         let content = fs::read_to_string(path).map_err(|err| {
             let (message, hint) = match err.kind() {
                 ErrorKind::NotFound => (
-                    format!("設定ファイルが見つかりません: {}", path.display()),
-                    Some(format!(
+                    crate::tr!(
+                        "設定ファイルが見つかりません: {}",
+                        "Config file not found: {}",
+                        path.display()
+                    ),
+                    Some(crate::tr!(
                         "{} を作成してから再実行してください",
+                        "Create {} and retry.",
                         path.display()
                     )),
                 ),
                 ErrorKind::PermissionDenied => (
-                    format!("設定ファイルを読み込めません: {}", path.display()),
-                    Some("ファイルの権限を確認してください".to_string()),
+                    crate::tr!(
+                        "設定ファイルを読み込めません: {}",
+                        "Cannot read config file: {}",
+                        path.display()
+                    ),
+                    Some(crate::tr!(
+                        "ファイルの権限を確認してください",
+                        "Check file permissions."
+                    )),
                 ),
                 _ => (
-                    format!("設定ファイルの読み込みに失敗しました: {}", path.display()),
+                    crate::tr!(
+                        "設定ファイルの読み込みに失敗しました: {}",
+                        "Failed to read config file: {}",
+                        path.display()
+                    ),
                     Some(err.to_string()),
                 ),
             };
@@ -111,7 +127,11 @@ impl Config {
         })?;
         let mut config: Config = toml::from_str(&content).map_err(|err| {
             AppError::config(
-                format!("設定ファイルの解析に失敗しました: {}", path.display()),
+                crate::tr!(
+                    "設定ファイルの解析に失敗しました: {}",
+                    "Failed to parse config file: {}",
+                    path.display()
+                ),
                 Some(err.to_string()),
             )
         })?;
@@ -123,8 +143,15 @@ impl Config {
     pub fn target_by_name(&self, name: &str) -> AppResult<&Target> {
         self.targets.iter().find(|t| t.name == name).ok_or_else(|| {
             AppError::config(
-                format!("ターゲットが見つかりません: {}", name),
-                Some("targets コマンドで利用可能な名前を確認してください".to_string()),
+                crate::tr!(
+                    "ターゲットが見つかりません: {}",
+                    "Target not found: {}",
+                    name
+                ),
+                Some(crate::tr!(
+                    "targets コマンドで利用可能な名前を確認してください",
+                    "Run targets to see available names."
+                )),
             )
         })
     }
@@ -140,36 +167,56 @@ impl Config {
     fn validate(&self) -> AppResult<()> {
         if self.diff.command.is_empty() {
             return Err(AppError::config(
-                "diff.command が空です".to_string(),
-                Some("config.toml の diff.command を設定してください".to_string()),
+                crate::tr!("diff.command が空です", "diff.command is empty"),
+                Some(crate::tr!(
+                    "config.toml の diff.command を設定してください",
+                    "Set diff.command in config.toml"
+                )),
             ));
         }
         for pattern in &self.hash.ignore {
             Glob::new(pattern).map_err(|err| {
                 AppError::config(
-                    format!("ignore パターンが不正です: {}", pattern),
+                    crate::tr!(
+                        "ignore パターンが不正です: {}",
+                        "Invalid ignore pattern: {}",
+                        pattern
+                    ),
                     Some(err.to_string()),
                 )
             })?;
         }
         if self.targets.is_empty() {
             return Err(AppError::config(
-                "targets が空です".to_string(),
-                Some("config.toml に targets を追加してください".to_string()),
+                crate::tr!("targets が空です", "targets is empty"),
+                Some(crate::tr!(
+                    "config.toml に targets を追加してください",
+                    "Add targets to config.toml"
+                )),
             ));
         }
         let mut seen = HashSet::new();
         for target in &self.targets {
             if target.name.trim().is_empty() {
                 return Err(AppError::config(
-                    "targets.name が空です".to_string(),
-                    Some("targets.name に一意な文字列を設定してください".to_string()),
+                    crate::tr!("targets.name が空です", "targets.name is empty"),
+                    Some(crate::tr!(
+                        "targets.name に一意な文字列を設定してください",
+                        "Set a unique string for targets.name"
+                    )),
                 ));
             }
             if !seen.insert(target.name.clone()) {
                 return Err(AppError::config(
-                    format!("targets.name が重複しています: {}", target.name),
-                    Some("targets.name は一意にしてください".to_string()),
+                    crate::tr!(
+                        "targets.name が重複しています: {}",
+                        "targets.name is duplicated: {}",
+                        target.name
+                    ),
+                    Some(crate::tr!(
+                        "targets.name は一意にしてください",
+                        "targets.name must be unique"
+                    )),
                 ));
             }
         }
@@ -180,7 +227,11 @@ impl Config {
 fn expand_path(path: &str) -> AppResult<PathBuf> {
     let expanded = shellexpand::full(path).map_err(|err| {
         AppError::config(
-            format!("パス展開に失敗しました: {}", path),
+            crate::tr!(
+                "パス展開に失敗しました: {}",
+                "Failed to expand path: {}",
+                path
+            ),
             Some(err.to_string()),
         )
     })?;

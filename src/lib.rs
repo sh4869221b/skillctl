@@ -4,6 +4,7 @@ mod config;
 mod diff;
 mod digest;
 mod error;
+mod i18n;
 mod skill;
 mod status;
 mod sync;

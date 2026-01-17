@@ -62,6 +62,7 @@
 * 必須（global_root, targets）が揃っている → 正常ロード
 * `SKILLCTL_CONFIG` 指定時はそのパスを優先してロード
 * `XDG_CONFIG_HOME` 指定時は `${XDG_CONFIG_HOME}/skillctl/config.toml` を参照する
+* `SKILLCTL_LANG=en` 指定時は英語メッセージになる
 * targets が空 → エラー
 * 不正な `hash.algo` → エラー
 * 不正な ignore glob → エラー

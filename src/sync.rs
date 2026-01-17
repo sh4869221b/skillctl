@@ -67,8 +67,15 @@ pub fn plan_push(
         let in_target = target_skills.iter().any(|s| s == skill);
         if !in_global && (!prune || !in_target) {
             return Err(AppError::exec(
-                format!("global に skill が存在しません: {}", skill),
-                Some("list --global で一覧を確認してください".to_string()),
+                crate::tr!(
+                    "global に skill が存在しません: {}",
+                    "Skill does not exist in global: {}",
+                    skill
+                ),
+                Some(crate::tr!(
+                    "list --global で一覧を確認してください",
+                    "Run list --global to see available skills."
+                )),
             ));
         }
     }
@@ -159,8 +166,15 @@ pub fn plan_import(
         let in_target = target_skills.iter().any(|s| s == skill);
         if !in_target {
             return Err(AppError::exec(
-                format!("ターゲットに skill が存在しません: {}", skill),
-                Some("list --target <name> で一覧を確認してください".to_string()),
+                crate::tr!(
+                    "ターゲットに skill が存在しません: {}",
+                    "Skill does not exist in target: {}",
+                    skill
+                ),
+                Some(crate::tr!(
+                    "list --target <name> で一覧を確認してください",
+                    "Run list --target <name> to see available skills."
+                )),
             ));
         }
     }
@@ -229,14 +243,20 @@ pub fn execute_plan(plan: &Plan, dry_run: bool) -> AppResult<()> {
             PlanKind::Install | PlanKind::Update => {
                 let src = op.src.as_ref().ok_or_else(|| {
                     AppError::exec(
-                        format!("src が未設定です: {}", op.skill),
-                        Some("実装に問題があります".to_string()),
+                        crate::tr!("src が未設定です: {}", "src is not set: {}", op.skill),
+                        Some(crate::tr!(
+                            "実装に問題があります",
+                            "There is an implementation bug."
+                        )),
                     )
                 })?;
                 let dest = op.dest.as_ref().ok_or_else(|| {
                     AppError::exec(
-                        format!("dest が未設定です: {}", op.skill),
-                        Some("実装に問題があります".to_string()),
+                        crate::tr!("dest が未設定です: {}", "dest is not set: {}", op.skill),
+                        Some(crate::tr!(
+                            "実装に問題があります",
+                            "There is an implementation bug."
+                        )),
                     )
                 })?;
                 if !dry_run {
@@ -246,14 +266,21 @@ pub fn execute_plan(plan: &Plan, dry_run: bool) -> AppResult<()> {
             PlanKind::Prune => {
                 let dest = op.dest.as_ref().ok_or_else(|| {
                     AppError::exec(
-                        format!("dest が未設定です: {}", op.skill),
-                        Some("実装に問題があります".to_string()),
+                        crate::tr!("dest が未設定です: {}", "dest is not set: {}", op.skill),
+                        Some(crate::tr!(
+                            "実装に問題があります",
+                            "There is an implementation bug."
+                        )),
                     )
                 })?;
                 if !dry_run {
                     fs::remove_dir_all(dest).map_err(|err| {
                         AppError::exec(
-                            format!("削除に失敗しました: {}", dest.display()),
+                            crate::tr!(
+                                "削除に失敗しました: {}",
+                                "Failed to remove: {}",
+                                dest.display()
+                            ),
                             Some(err.to_string()),
                         )
                     })?;
@@ -286,13 +313,24 @@ pub fn summarize_plan(plan: &Plan) -> Vec<String> {
 fn replace_dir(src: &Path, dest: &Path) -> AppResult<()> {
     let parent = dest.parent().ok_or_else(|| {
         AppError::exec(
-            format!("親ディレクトリを特定できません: {}", dest.display()),
-            Some("dest パスを確認してください".to_string()),
+            crate::tr!(
+                "親ディレクトリを特定できません: {}",
+                "Failed to determine parent directory: {}",
+                dest.display()
+            ),
+            Some(crate::tr!(
+                "dest パスを確認してください",
+                "Check the dest path."
+            )),
         )
     })?;
     let temp_dir = TempDir::new_in(parent).map_err(|err| {
         AppError::exec(
-            format!("一時ディレクトリの作成に失敗しました: {}", parent.display()),
+            crate::tr!(
+                "一時ディレクトリの作成に失敗しました: {}",
+                "Failed to create temp directory: {}",
+                parent.display()
+            ),
             Some(err.to_string()),
         )
     })?;
@@ -300,14 +338,22 @@ fn replace_dir(src: &Path, dest: &Path) -> AppResult<()> {
     if dest.exists() {
         fs::remove_dir_all(dest).map_err(|err| {
             AppError::exec(
-                format!("既存ディレクトリの削除に失敗しました: {}", dest.display()),
+                crate::tr!(
+                    "既存ディレクトリの削除に失敗しました: {}",
+                    "Failed to remove existing directory: {}",
+                    dest.display()
+                ),
                 Some(err.to_string()),
             )
         })?;
     }
     fs::rename(temp_dir.path(), dest).map_err(|err| {
         AppError::exec(
-            format!("ディレクトリの置換に失敗しました: {}", dest.display()),
+            crate::tr!(
+                "ディレクトリの置換に失敗しました: {}",
+                "Failed to replace directory: {}",
+                dest.display()
+            ),
             Some(err.to_string()),
         )
     })?;
@@ -317,20 +363,32 @@ fn replace_dir(src: &Path, dest: &Path) -> AppResult<()> {
 fn copy_dir(src: &Path, dest: &Path) -> AppResult<()> {
     fs::create_dir_all(dest).map_err(|err| {
         AppError::exec(
-            format!("ディレクトリ作成に失敗しました: {}", dest.display()),
+            crate::tr!(
+                "ディレクトリ作成に失敗しました: {}",
+                "Failed to create directory: {}",
+                dest.display()
+            ),
             Some(err.to_string()),
         )
     })?;
     for entry in walkdir::WalkDir::new(src).follow_links(false) {
         let entry = entry.map_err(|err| {
             AppError::exec(
-                format!("ディレクトリコピーに失敗しました: {}", src.display()),
+                crate::tr!(
+                    "ディレクトリコピーに失敗しました: {}",
+                    "Failed to copy directory: {}",
+                    src.display()
+                ),
                 Some(err.to_string()),
             )
         })?;
         let rel = entry.path().strip_prefix(src).map_err(|err| {
             AppError::exec(
-                format!("相対パスの取得に失敗しました: {}", entry.path().display()),
+                crate::tr!(
+                    "相対パスの取得に失敗しました: {}",
+                    "Failed to get relative path: {}",
+                    entry.path().display()
+                ),
                 Some(err.to_string()),
             )
         })?;
@@ -341,7 +399,11 @@ fn copy_dir(src: &Path, dest: &Path) -> AppResult<()> {
         if entry.file_type().is_dir() {
             fs::create_dir_all(&dest_path).map_err(|err| {
                 AppError::exec(
-                    format!("ディレクトリ作成に失敗しました: {}", dest_path.display()),
+                    crate::tr!(
+                        "ディレクトリ作成に失敗しました: {}",
+                        "Failed to create directory: {}",
+                        dest_path.display()
+                    ),
                     Some(err.to_string()),
                 )
             })?;
@@ -349,15 +411,20 @@ fn copy_dir(src: &Path, dest: &Path) -> AppResult<()> {
             if let Some(parent) = dest_path.parent() {
                 fs::create_dir_all(parent).map_err(|err| {
                     AppError::exec(
-                        format!("ディレクトリ作成に失敗しました: {}", parent.display()),
+                        crate::tr!(
+                            "ディレクトリ作成に失敗しました: {}",
+                            "Failed to create directory: {}",
+                            parent.display()
+                        ),
                         Some(err.to_string()),
                     )
                 })?;
             }
             fs::copy(entry.path(), &dest_path).map_err(|err| {
                 AppError::exec(
-                    format!(
+                    crate::tr!(
                         "ファイルコピーに失敗しました: {} -> {}",
+                        "Failed to copy file: {} -> {}",
                         entry.path().display(),
                         dest_path.display()
                     ),
@@ -366,8 +433,15 @@ fn copy_dir(src: &Path, dest: &Path) -> AppResult<()> {
             })?;
         } else {
             return Err(AppError::exec(
-                format!("未対応のファイル種別です: {}", entry.path().display()),
-                Some("通常ファイルのみを含めてください".to_string()),
+                crate::tr!(
+                    "未対応のファイル種別です: {}",
+                    "Unsupported file type: {}",
+                    entry.path().display()
+                ),
+                Some(crate::tr!(
+                    "通常ファイルのみを含めてください",
+                    "Include only regular files."
+                )),
             ));
         }
     }

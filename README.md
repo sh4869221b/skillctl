@@ -84,6 +84,13 @@ skillctl diff my-skill --target codex
 * `--prune`：`push` 時に target の extra を削除対象に含める
 * `--overwrite`：`import` 時に global を置換する
 
+### 環境変数
+
+* `SKILLCTL_CONFIG`：設定ファイルのパスを明示指定（最優先）
+* `SKILLCTL_LANG`：メッセージ言語（`ja` / `en`）
+  - 未指定時は `LC_ALL` / `LC_MESSAGES` / `LANG` を参照
+  - 未対応値は `ja` 扱い
+
 ## 振る舞いのポイント
 
 * digest は **相対パス＋内容**で計算し、ファイル名や内容の変更は差分扱い

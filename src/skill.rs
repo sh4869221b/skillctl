@@ -5,8 +5,11 @@ use crate::error::{AppError, AppResult};
 pub fn validate_skill_id(skill: &str) -> AppResult<()> {
     if skill.trim().is_empty() {
         return Err(AppError::config(
-            "skill が空です".to_string(),
-            Some("skill 名を指定してください".to_string()),
+            crate::tr!("skill が空です", "skill is empty"),
+            Some(crate::tr!(
+                "skill 名を指定してください",
+                "Provide a skill name."
+            )),
         ));
     }
     let path = Path::new(skill);
@@ -14,8 +17,11 @@ pub fn validate_skill_id(skill: &str) -> AppResult<()> {
     match (components.next(), components.next()) {
         (Some(Component::Normal(_)), None) => Ok(()),
         _ => Err(AppError::config(
-            format!("skill が不正です: {}", skill),
-            Some("スキル名はディレクトリ名のみを指定してください".to_string()),
+            crate::tr!("skill が不正です: {}", "Skill is invalid: {}", skill),
+            Some(crate::tr!(
+                "スキル名はディレクトリ名のみを指定してください",
+                "Use a directory name only."
+            )),
         )),
     }
 }

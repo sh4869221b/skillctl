@@ -17,7 +17,11 @@ pub fn build_ignore_set(patterns: &[String]) -> AppResult<Option<GlobSet>> {
     for pattern in patterns {
         let glob = Glob::new(pattern).map_err(|err| {
             AppError::config(
-                format!("ignore パターンが不正です: {}", pattern),
+                crate::tr!(
+                    "ignore パターンが不正です: {}",
+                    "Invalid ignore pattern: {}",
+                    pattern
+                ),
                 Some(err.to_string()),
             )
         })?;
@@ -25,7 +29,10 @@ pub fn build_ignore_set(patterns: &[String]) -> AppResult<Option<GlobSet>> {
     }
     let set = builder.build().map_err(|err| {
         AppError::config(
-            "ignore パターンの構築に失敗しました".to_string(),
+            crate::tr!(
+                "ignore パターンの構築に失敗しました",
+                "Failed to build ignore patterns"
+            ),
             Some(err.to_string()),
         )
     })?;
@@ -35,15 +42,26 @@ pub fn build_ignore_set(patterns: &[String]) -> AppResult<Option<GlobSet>> {
 pub fn digest_dir(path: &Path, algo: HashAlgo, ignore: Option<&GlobSet>) -> AppResult<String> {
     if !path.is_dir() {
         return Err(AppError::exec(
-            format!("ディレクトリが見つかりません: {}", path.display()),
-            Some("対象パスを確認してください".to_string()),
+            crate::tr!(
+                "ディレクトリが見つかりません: {}",
+                "Directory not found: {}",
+                path.display()
+            ),
+            Some(crate::tr!(
+                "対象パスを確認してください",
+                "Check the target path."
+            )),
         ));
     }
     let mut files = Vec::new();
     for entry in WalkDir::new(path).follow_links(false) {
         let entry = entry.map_err(|err| {
             AppError::exec(
-                format!("ファイル走査に失敗しました: {}", path.display()),
+                crate::tr!(
+                    "ファイル走査に失敗しました: {}",
+                    "Failed to scan files: {}",
+                    path.display()
+                ),
                 Some(err.to_string()),
             )
         })?;
@@ -52,13 +70,24 @@ pub fn digest_dir(path: &Path, algo: HashAlgo, ignore: Option<&GlobSet>) -> AppR
         }
         if !entry.file_type().is_file() {
             return Err(AppError::exec(
-                format!("未対応のファイル種別です: {}", entry.path().display()),
-                Some("通常ファイルのみを含めてください".to_string()),
+                crate::tr!(
+                    "未対応のファイル種別です: {}",
+                    "Unsupported file type: {}",
+                    entry.path().display()
+                ),
+                Some(crate::tr!(
+                    "通常ファイルのみを含めてください",
+                    "Include only regular files."
+                )),
             ));
         }
         let rel = entry.path().strip_prefix(path).map_err(|err| {
             AppError::exec(
-                format!("相対パスの取得に失敗しました: {}", entry.path().display()),
+                crate::tr!(
+                    "相対パスの取得に失敗しました: {}",
+                    "Failed to get relative path: {}",
+                    entry.path().display()
+                ),
                 Some(err.to_string()),
             )
         })?;
@@ -104,7 +133,11 @@ fn normalize_rel_path(path: &Path) -> String {
 fn hash_file(hasher: &mut DigestHasher, path: &Path) -> AppResult<()> {
     let file = File::open(path).map_err(|err| {
         AppError::exec(
-            format!("ファイルの読み込みに失敗しました: {}", path.display()),
+            crate::tr!(
+                "ファイルの読み込みに失敗しました: {}",
+                "Failed to read file: {}",
+                path.display()
+            ),
             Some(err.to_string()),
         )
     })?;
@@ -113,7 +146,11 @@ fn hash_file(hasher: &mut DigestHasher, path: &Path) -> AppResult<()> {
     loop {
         let read = reader.read(&mut buf).map_err(|err| {
             AppError::exec(
-                format!("ファイルの読み込みに失敗しました: {}", path.display()),
+                crate::tr!(
+                    "ファイルの読み込みに失敗しました: {}",
+                    "Failed to read file: {}",
+                    path.display()
+                ),
                 Some(err.to_string()),
             )
         })?;
