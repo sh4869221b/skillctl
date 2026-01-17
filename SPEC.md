@@ -58,8 +58,11 @@
 
 ### 5.1 既定パス
 
-* `~/.config/skillctl/config.toml`
-* `SKILLCTL_CONFIG` 環境変数がある場合はそのパスを優先する
+優先順位は以下の通り。
+
+1. `SKILLCTL_CONFIG` 環境変数がある場合はそのパスを使用
+2. `XDG_CONFIG_HOME` がある場合は `${XDG_CONFIG_HOME}/skillctl/config.toml`
+3. それ以外は `~/.config/skillctl/config.toml`
 
 ### 5.2 スキーマ（必須）
 

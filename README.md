@@ -9,7 +9,8 @@
 
 ### 1. 設定ファイルを用意する
 
-既定の設定パスは `~/.config/skillctl/config.toml` です。
+既定の設定パスは `XDG_CONFIG_HOME/skillctl/config.toml` です。
+`XDG_CONFIG_HOME` が未設定の場合は `~/.config/skillctl/config.toml` を使用します。
 `SKILLCTL_CONFIG` を指定すると、そのパスを優先します。
 
 ```toml
@@ -110,7 +111,7 @@ skillctl diff my-skill --target codex
 ## トラブルシュート
 
 * `設定ファイルが見つかりません` が出る  
-  - `~/.config/skillctl/config.toml` を作成して再実行してください
+  - `XDG_CONFIG_HOME/skillctl/config.toml` または `SKILLCTL_CONFIG` で指定したパスを作成して再実行してください
 * `ターゲットが見つかりません` が出る  
   - `skillctl targets` で利用可能なターゲット名を確認してください
 * `root が存在しません` が出る  

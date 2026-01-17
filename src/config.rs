@@ -8,8 +8,9 @@ use serde::Deserialize;
 
 use crate::error::{AppError, AppResult};
 
-const DEFAULT_CONFIG_PATH: &str = "~/.config/skillctl/config.toml";
 const CONFIG_PATH_ENV: &str = "SKILLCTL_CONFIG";
+const XDG_CONFIG_HOME_ENV: &str = "XDG_CONFIG_HOME";
+const DEFAULT_CONFIG_DIR: &str = "~/.config";
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
@@ -79,10 +80,10 @@ impl Default for DiffConfig {
 
 impl Config {
     pub fn load_default() -> AppResult<Self> {
-        let path = if let Ok(path) = std::env::var(CONFIG_PATH_ENV) {
+        let path = if let Some(path) = env_var_non_empty(CONFIG_PATH_ENV) {
             expand_path(&path)?
         } else {
-            expand_path(DEFAULT_CONFIG_PATH)?
+            default_config_path()?
         };
         Self::load_from_path(&path)
     }
@@ -94,7 +95,7 @@ impl Config {
                     format!("設定ファイルが見つかりません: {}", path.display()),
                     Some(format!(
                         "{} を作成してから再実行してください",
-                        DEFAULT_CONFIG_PATH
+                        path.display()
                     )),
                 ),
                 ErrorKind::PermissionDenied => (
@@ -191,14 +192,77 @@ fn expand_path_pathbuf(path: &Path) -> AppResult<PathBuf> {
     expand_path(&raw)
 }
 
+fn env_var_non_empty(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|value| !value.is_empty())
+}
+
+fn default_config_path() -> AppResult<PathBuf> {
+    let base = if let Some(xdg) = env_var_non_empty(XDG_CONFIG_HOME_ENV) {
+        expand_path(&xdg)?
+    } else if let Some(home) = env_var_non_empty("HOME") {
+        expand_path(&format!("{home}/.config"))?
+    } else {
+        expand_path(DEFAULT_CONFIG_DIR)?
+    };
+    Ok(base.join("skillctl").join("config.toml"))
+}
+
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsString;
     use std::fs;
     use std::path::PathBuf;
+    use std::sync::{Mutex, OnceLock};
 
     use tempfile::TempDir;
 
     use super::*;
+
+    struct EnvGuard {
+        key: &'static str,
+        previous: Option<OsString>,
+    }
+
+    impl EnvGuard {
+        fn set(key: &'static str, value: &str) -> Self {
+            let previous = std::env::var_os(key);
+            // Safety: tests serialize env mutation via env_lock.
+            unsafe {
+                std::env::set_var(key, value);
+            }
+            Self { key, previous }
+        }
+
+        fn remove(key: &'static str) -> Self {
+            let previous = std::env::var_os(key);
+            // Safety: tests serialize env mutation via env_lock.
+            unsafe {
+                std::env::remove_var(key);
+            }
+            Self { key, previous }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            if let Some(previous) = &self.previous {
+                // Safety: tests serialize env mutation via env_lock.
+                unsafe {
+                    std::env::set_var(self.key, previous);
+                }
+            } else {
+                // Safety: tests serialize env mutation via env_lock.
+                unsafe {
+                    std::env::remove_var(self.key);
+                }
+            }
+        }
+    }
+
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+    }
 
     fn write_config(dir: &TempDir, body: &str) -> PathBuf {
         let path = dir.path().join("config.toml");
@@ -370,5 +434,33 @@ root = "$HOME"
         let expected = PathBuf::from(home);
         assert_eq!(config.global_root, expected);
         assert_eq!(config.targets[0].root, expected);
+    }
+
+    #[test]
+    fn config_load_default_uses_xdg_config_home() {
+        let _lock = env_lock();
+        let dir = TempDir::new().unwrap();
+        let xdg_home = dir.path().join("xdg");
+        let config_dir = xdg_home.join("skillctl");
+        fs::create_dir_all(&config_dir).unwrap();
+        let config_path = config_dir.join("config.toml");
+        fs::write(
+            &config_path,
+            r#"
+global_root = "/tmp/global"
+
+[[targets]]
+name = "t1"
+root = "/tmp/skills"
+"#,
+        )
+        .unwrap();
+
+        let _skillctl_env = EnvGuard::remove(CONFIG_PATH_ENV);
+        let _xdg_env = EnvGuard::set(XDG_CONFIG_HOME_ENV, xdg_home.to_string_lossy().as_ref());
+
+        let config = Config::load_default().unwrap();
+        assert_eq!(config.global_root, PathBuf::from("/tmp/global"));
+        assert_eq!(config.targets[0].root, PathBuf::from("/tmp/skills"));
     }
 }
