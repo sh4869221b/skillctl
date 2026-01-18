@@ -68,6 +68,35 @@ fn write_file(path: &Path, contents: &str) {
     fs::write(path, contents).unwrap();
 }
 
+fn snapshot_dir(root: &Path) -> Vec<(String, Option<Vec<u8>>)> {
+    fn visit(
+        root: &Path,
+        dir: &Path,
+        out: &mut Vec<(String, Option<Vec<u8>>)>,
+    ) -> std::io::Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            let file_type = entry.file_type()?;
+            let rel = path.strip_prefix(root).unwrap();
+            let rel = rel.to_string_lossy().replace('\\', "/");
+            if file_type.is_dir() {
+                out.push((format!("{}/", rel), None));
+                visit(root, &path, out)?;
+            } else if file_type.is_file() {
+                let data = fs::read(&path)?;
+                out.push((rel, Some(data)));
+            }
+        }
+        Ok(())
+    }
+
+    let mut out = Vec::new();
+    visit(root, root, &mut out).unwrap();
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
 fn normalize_output(output: &[u8]) -> String {
     let stdout = String::from_utf8_lossy(output).to_string();
     stdout.replace("\r\n", "\n")
@@ -140,6 +169,7 @@ fn push_dry_run_snapshot() {
     write_file(&global_root.join("skill_missing/file.txt"), "m");
     write_file(&target_root.join("skill_extra/file.txt"), "e");
 
+    let before = snapshot_dir(&target_root);
     let mut cmd = cargo_bin_cmd!("skillctl");
     set_config_env(&mut cmd, &config_path);
     cmd.arg("push")
@@ -151,6 +181,8 @@ fn push_dry_run_snapshot() {
     let output = cmd.assert().success().get_output().stdout.clone();
     let stdout = normalize_output(&output);
     insta::assert_snapshot!(stdout);
+    let after = snapshot_dir(&target_root);
+    assert_eq!(before, after);
 }
 
 #[test]

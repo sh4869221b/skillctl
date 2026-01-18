@@ -45,6 +45,16 @@ fn snapshot_root(root: &Path, algo: HashAlgo) -> Vec<(String, String)> {
     out
 }
 
+#[cfg(windows)]
+fn diff_success_command() -> Vec<String> {
+    vec!["cmd".to_string(), "/C".to_string(), "exit 0".to_string()]
+}
+
+#[cfg(not(windows))]
+fn diff_success_command() -> Vec<String> {
+    vec!["true".to_string()]
+}
+
 #[test]
 fn status_end_to_end() {
     let global_dir = TempDir::new().unwrap();
@@ -408,7 +418,7 @@ fn diff_runs_when_command_ok() {
     write_file(&target_root.join("skill_diff/file.txt"), "t");
 
     let mut config = make_config(global_root.to_path_buf(), target_root.to_path_buf());
-    config.diff.command = vec!["true".to_string()];
+    config.diff.command = diff_success_command();
     let target = &config.targets[0];
 
     run_diff(&config, target, "skill_diff").unwrap();
