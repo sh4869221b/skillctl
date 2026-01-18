@@ -16,4 +16,4 @@ pub use error::{AppError, AppResult};
 pub use skill::validate_skill_id;
 
 #[cfg(test)]
-mod integration_tests;
+mod core_e2e_tests;
