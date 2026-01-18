@@ -139,7 +139,16 @@ Keep the file structure minimal (e.g. a single `SKILL.md` plus an optional file)
 
 ---
 
-## 7. Pre-release checks (MVP gate)
+## 7. Mutation testing (periodic)
+
+* Run locally: `scripts/mutation.sh` (requires `cargo install cargo-mutants --locked`)
+* Scope is limited by `.cargo/mutants.toml` (core logic only)
+* CI: `.github/workflows/mutation.yml` runs weekly / manual, does not fail main CI
+* Review `mutants.out*` artifacts and add tests for surviving mutants
+
+---
+
+## 8. Pre-release checks (MVP gate)
 
 * `cargo fmt` / `cargo clippy` / `cargo test` pass
 * `status` table output is not broken (columns/headers)

@@ -45,6 +45,18 @@ cargo run -- status --target codex
 cargo build --release
 ```
 
+### 2.1 任意: just（タスクランナー）
+
+`just` を導入している場合は以下が使えます:
+
+```bash
+just fmt
+just clippy
+just test
+just ci
+just mutation
+```
+
 ### 3. コマンド例
 
 以下の例は、上記の `global_root = "~/skills/global"` と

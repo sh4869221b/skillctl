@@ -47,6 +47,18 @@ cargo run -- status --target codex
 cargo build --release
 ```
 
+### 2.1 Optional: just (task runner)
+
+If you have `just` installed, you can use these shortcuts:
+
+```bash
+just fmt
+just clippy
+just test
+just ci
+just mutation
+```
+
 ### 3. Command examples
 
 The examples below assume `global_root = "~/skills/global"` and

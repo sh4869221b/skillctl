@@ -1,0 +1,15 @@
+examine_globs = [
+  "src/config.rs",
+  "src/digest.rs",
+  "src/skill.rs",
+  "src/status.rs",
+  "src/sync.rs",
+]
+exclude_globs = [
+  "src/cli.rs",
+  "src/main.rs",
+]
+exclude_re = [
+  "replace == with != in hash_file",
+]
+gitignore = true
