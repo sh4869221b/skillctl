@@ -141,9 +141,7 @@ fn check_skill_contents(
     Ok(())
 }
 
-pub fn group_issues_by_skill<'a>(
-    issues: &'a [DoctorIssue],
-) -> BTreeMap<&'a str, Vec<&'a DoctorIssue>> {
+pub fn group_issues_by_skill(issues: &[DoctorIssue]) -> BTreeMap<&str, Vec<&DoctorIssue>> {
     let mut map: BTreeMap<&str, Vec<&DoctorIssue>> = BTreeMap::new();
     for issue in issues {
         map.entry(issue.skill.as_str()).or_default().push(issue);
