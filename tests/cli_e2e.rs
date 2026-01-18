@@ -9,6 +9,10 @@ fn escape_toml_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "\\\\")
 }
 
+fn escape_toml_string(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
 fn write_config(path: &Path, global_root: &Path, target_root: &Path) {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).unwrap();
@@ -22,6 +26,37 @@ root = "{}"
 "#,
         escape_toml_path(global_root),
         escape_toml_path(target_root)
+    );
+    fs::write(path, body).unwrap();
+}
+
+fn write_config_with_diff_command(
+    path: &Path,
+    global_root: &Path,
+    target_root: &Path,
+    diff_command: &[&str],
+) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    let command_list = diff_command
+        .iter()
+        .map(|value| format!("\"{}\"", escape_toml_string(value)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let body = format!(
+        r#"global_root = "{}"
+
+[[targets]]
+name = "t1"
+root = "{}"
+
+[diff]
+command = [{}]
+"#,
+        escape_toml_path(global_root),
+        escape_toml_path(target_root),
+        command_list
     );
     fs::write(path, body).unwrap();
 }
@@ -52,6 +87,27 @@ fn setup_fixture() -> (TempDir, PathBuf, PathBuf, PathBuf) {
     fs::create_dir_all(&target_root).unwrap();
     write_config(&config_path, &global_root, &target_root);
     (root, global_root, target_root, config_path)
+}
+
+fn setup_fixture_with_diff_command(diff_command: &[&str]) -> (TempDir, PathBuf, PathBuf, PathBuf) {
+    let root = TempDir::new().unwrap();
+    let global_root = root.path().join("global");
+    let target_root = root.path().join("target");
+    let config_path = root.path().join("config.toml");
+    fs::create_dir_all(&global_root).unwrap();
+    fs::create_dir_all(&target_root).unwrap();
+    write_config_with_diff_command(&config_path, &global_root, &target_root, diff_command);
+    (root, global_root, target_root, config_path)
+}
+
+#[cfg(windows)]
+fn diff_exit_one_command() -> Vec<&'static str> {
+    vec!["cmd", "/C", "exit 1"]
+}
+
+#[cfg(not(windows))]
+fn diff_exit_one_command() -> Vec<&'static str> {
+    vec!["sh", "-c", "exit 1"]
 }
 
 #[test]
@@ -98,6 +154,44 @@ fn push_dry_run_snapshot() {
 }
 
 #[test]
+fn push_execute_converges() {
+    let (_root, global_root, target_root, config_path) = setup_fixture();
+
+    write_file(&global_root.join("skill_missing/file.txt"), "m");
+    write_file(&global_root.join("skill_diff/file.txt"), "g");
+    write_file(&target_root.join("skill_diff/file.txt"), "t");
+
+    let mut cmd = cargo_bin_cmd!("skillctl");
+    set_config_env(&mut cmd, &config_path);
+    cmd.arg("push").arg("--all").arg("--target").arg("t1");
+    cmd.assert().success();
+
+    let missing = fs::read_to_string(target_root.join("skill_missing/file.txt")).unwrap();
+    let diff = fs::read_to_string(target_root.join("skill_diff/file.txt")).unwrap();
+    assert_eq!(missing, "m");
+    assert_eq!(diff, "g");
+}
+
+#[test]
+fn import_execute_add_only() {
+    let (_root, global_root, target_root, config_path) = setup_fixture();
+
+    write_file(&global_root.join("skill_keep/file.txt"), "global");
+    write_file(&target_root.join("skill_keep/file.txt"), "target");
+    write_file(&target_root.join("skill_extra/file.txt"), "e");
+
+    let mut cmd = cargo_bin_cmd!("skillctl");
+    set_config_env(&mut cmd, &config_path);
+    cmd.arg("import").arg("--all").arg("--from").arg("t1");
+    cmd.assert().success();
+
+    let keep = fs::read_to_string(global_root.join("skill_keep/file.txt")).unwrap();
+    let extra = fs::read_to_string(global_root.join("skill_extra/file.txt")).unwrap();
+    assert_eq!(keep, "global");
+    assert_eq!(extra, "e");
+}
+
+#[test]
 fn doctor_global_snapshot() {
     let (_root, global_root, _target_root, config_path) = setup_fixture();
 
@@ -110,6 +204,21 @@ fn doctor_global_snapshot() {
     let output = cmd.assert().success().get_output().stdout.clone();
     let stdout = normalize_output(&output);
     insta::assert_snapshot!(stdout);
+}
+
+#[test]
+fn diff_exit_code_one_is_success() {
+    let diff_command = diff_exit_one_command();
+    let (_root, global_root, target_root, config_path) =
+        setup_fixture_with_diff_command(&diff_command);
+
+    write_file(&global_root.join("skill_diff/file.txt"), "g");
+    write_file(&target_root.join("skill_diff/file.txt"), "t");
+
+    let mut cmd = cargo_bin_cmd!("skillctl");
+    set_config_env(&mut cmd, &config_path);
+    cmd.arg("diff").arg("skill_diff").arg("--target").arg("t1");
+    cmd.assert().success();
 }
 
 #[test]
