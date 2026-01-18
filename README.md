@@ -68,6 +68,11 @@ skillctl status --target codex
 # Status (all targets)
 skillctl status --all
 
+# Doctor (global / target / all)
+skillctl doctor --global
+skillctl doctor --target codex
+skillctl doctor --all
+
 # Sync (global -> target)
 skillctl push my-skill --target codex
 skillctl push --all --target codex
@@ -85,6 +90,7 @@ skillctl diff my-skill --target codex
 * `--dry-run`: list planned operations only (no file changes)
 * `--prune`: include target extras for removal during `push`
 * `--overwrite`: replace global during `import`
+* `--all`: use all targets (for `status` / `doctor`)
 
 ### Environment variables
 

@@ -4,6 +4,7 @@ use clap::{ArgGroup, Parser, Subcommand};
 
 use crate::config::Config;
 use crate::diff::run_diff;
+use crate::doctor::{doctor_root, group_issues_by_skill};
 use crate::error::{AppError, AppResult};
 use crate::status::{list_skills, render_status_table, status_for_target};
 use crate::sync::{Selection, execute_plan, plan_import, plan_push, summarize_plan};
@@ -35,6 +36,19 @@ enum Commands {
             .args(["target", "all"])
     ))]
     Status {
+        #[arg(long)]
+        target: Option<String>,
+        #[arg(long)]
+        all: bool,
+    },
+    #[command(group(
+        ArgGroup::new("scope")
+            .required(true)
+            .args(["global", "target", "all"])
+    ))]
+    Doctor {
+        #[arg(long)]
+        global: bool,
         #[arg(long)]
         target: Option<String>,
         #[arg(long)]
@@ -145,6 +159,34 @@ fn execute(cli: Cli) -> AppResult<()> {
                 print!("{}", table);
             }
         }
+        Commands::Doctor {
+            global,
+            target,
+            all,
+        } => {
+            if global {
+                run_doctor(crate::tr!("グローバル", "Global"), &config.global_root)?;
+            } else if all {
+                for t in &config.targets {
+                    run_doctor(crate::tr!("ターゲット: {}", "Target: {}", t.name), &t.root)?;
+                }
+            } else {
+                let name = target.ok_or_else(|| {
+                    AppError::config(
+                        crate::tr!("target が指定されていません", "target is not specified"),
+                        Some(crate::tr!(
+                            "doctor --target <name> を指定してください",
+                            "Specify doctor --target <name>"
+                        )),
+                    )
+                })?;
+                let target = config.target_by_name(&name)?;
+                run_doctor(
+                    crate::tr!("ターゲット: {}", "Target: {}", target.name),
+                    &target.root,
+                )?;
+            }
+        }
         Commands::Push {
             skill,
             all,
@@ -204,5 +246,30 @@ fn execute(cli: Cli) -> AppResult<()> {
             run_diff(&config, target, &skill)?;
         }
     }
+    Ok(())
+}
+
+fn run_doctor(label: String, root: &std::path::Path) -> AppResult<()> {
+    println!("{}", label);
+    let report = doctor_root(root)?;
+    let by_skill = group_issues_by_skill(&report.issues);
+    for skill in &report.skills {
+        if let Some(issues) = by_skill.get(skill.as_str()) {
+            for issue in issues {
+                println!("issue {} {}", skill, issue.message);
+            }
+        } else {
+            println!("ok {}", skill);
+        }
+    }
+    println!(
+        "{}",
+        crate::tr!(
+            "checked: {} issues: {}",
+            "checked: {} issues: {}",
+            report.skills.len(),
+            report.issues.len()
+        )
+    );
     Ok(())
 }

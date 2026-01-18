@@ -98,6 +98,21 @@ fn push_dry_run_snapshot() {
 }
 
 #[test]
+fn doctor_global_snapshot() {
+    let (_root, global_root, _target_root, config_path) = setup_fixture();
+
+    write_file(&global_root.join("a_missing/notes.txt"), "x");
+    write_file(&global_root.join("b_ok/SKILL.md"), "ok");
+
+    let mut cmd = cargo_bin_cmd!("skillctl");
+    set_config_env(&mut cmd, &config_path);
+    cmd.arg("doctor").arg("--global");
+    let output = cmd.assert().success().get_output().stdout.clone();
+    let stdout = normalize_output(&output);
+    insta::assert_snapshot!(stdout);
+}
+
+#[test]
 fn diff_rejects_invalid_skill_cli() {
     let (_root, _global_root, _target_root, config_path) = setup_fixture();
 

@@ -188,18 +188,34 @@ Priority order:
 
 ---
 
-## 10. CLI commands (MVP)
+## 10. doctor specification
 
-### 10.1 Command list
+* `doctor --global | --target <name> | --all`
+* Checks per skill directory:
+  * `SKILL.md` exists and is a **regular file** (not symlink)
+  * No **symlinks** inside the skill directory
+  * No **unsupported file types** (only dirs/files)
+* Output format (per root):
+  * `ok <skill>` when no issues
+  * `issue <skill> <message>` for each issue
+  * Summary: `checked: <count> issues: <count>`
+* When `--all` is specified, outputs a labeled section per target
+
+---
+
+## 11. CLI commands (MVP)
+
+### 11.1 Command list
 
 * `targets`
 * `list --global | --target <name>`
 * `status --target <name> | --all`
+* `doctor --global | --target <name> | --all`
 * `push [<skill>|--all] --target <name> [--dry-run] [--prune]`
 * `import [<skill>|--all] --from <name> [--dry-run] [--overwrite]`
 * `diff <skill> --target <name>`
 
-### 10.2 Exit codes
+### 11.2 Exit codes
 
 * `0`: success
 * `2`: invalid CLI arguments
@@ -208,7 +224,7 @@ Priority order:
 
 ---
 
-## 11. Acceptance criteria (MVP)
+## 12. Acceptance criteria (MVP)
 
 * `status` outputs all four states correctly
 * `push --dry-run` lists planned ops and makes zero file changes
@@ -218,9 +234,8 @@ Priority order:
 
 ---
 
-## 12. v1 ideas (reference)
+## 13. v1 ideas (reference)
 
 * `status --format json`
-* `doctor` (SKILL.md presence, naming conventions, etc.)
 * Digest cache (performance)
 * Filters (e.g. diff-only view)

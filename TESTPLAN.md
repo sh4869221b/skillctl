@@ -17,6 +17,7 @@
 * Digest (ignore, stabilization, change detection)
 * State determination (set operations, 4 states)
 * Config loading (required/optional, error cases)
+* Doctor (SKILL.md presence, symlinks, unsupported file types)
 * Property tests (digest stability/order independence)
 * Performance smoke (many files within reasonable time)
 
@@ -74,6 +75,14 @@ Keep the file structure minimal (e.g. a single `SKILL.md` plus an optional file)
 * Return results for the union of skill names (global ∪ target)
 * Propagate digest errors (permission, etc.) properly
 
+### 4.4 doctor
+
+* Missing `SKILL.md` is reported
+* `SKILL.md` symlink is reported
+* Symlinks inside a skill directory are reported
+* Unsupported file types are reported
+* OK skills report no issues
+
 ---
 
 ## 5. Integration test details
@@ -109,6 +118,11 @@ Keep the file structure minimal (e.g. a single `SKILL.md` plus an optional file)
 * diff.command exit code **>= 2** → error
 * Missing path on either side → clear error with next action guidance (push/import)
 * diff.command executable missing → clear error
+
+### 5.7 doctor
+
+* CLI reports missing `SKILL.md` for a target/global root
+* Output includes summary (`checked`, `issues`)
 
 ---
 

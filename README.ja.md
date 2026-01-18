@@ -66,6 +66,11 @@ skillctl status --target codex
 # 状態確認（全ターゲット）
 skillctl status --all
 
+# 診断（global / target / 全ターゲット）
+skillctl doctor --global
+skillctl doctor --target codex
+skillctl doctor --all
+
 # 同期（global -> target）
 skillctl push my-skill --target codex
 skillctl push --all --target codex
@@ -83,6 +88,7 @@ skillctl diff my-skill --target codex
 * `--dry-run`：操作予定の列挙のみ（ファイル操作は行わない）
 * `--prune`：`push` 時に target の extra を削除対象に含める
 * `--overwrite`：`import` 時に global を置換する
+* `--all`：`status` / `doctor` で全ターゲットを対象にする
 
 ### 環境変数
 

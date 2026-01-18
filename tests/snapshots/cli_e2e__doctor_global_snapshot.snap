@@ -1,0 +1,8 @@
+---
+source: tests/cli_e2e.rs
+expression: stdout
+---
+グローバル
+issue a_missing SKILL.md が見つかりません
+ok b_ok
+checked: 2 issues: 1
