@@ -115,6 +115,7 @@ Keep the file structure minimal (e.g. a single `SKILL.md` plus an optional file)
 ### 5.6 diff
 
 * Valid diff.command and both paths exist → diff runs (exit code 0)
+* diff.command exit code **1** → success (diff with changes)
 * diff.command exit code **>= 2** → error
 * Missing path on either side → clear error with next action guidance (push/import)
 * diff.command executable missing → clear error
@@ -128,8 +129,8 @@ Keep the file structure minimal (e.g. a single `SKILL.md` plus an optional file)
 
 ## 6. Error cases (minimum)
 
-* target.root missing (define empty vs error in spec and test it)
-* global_root missing (same)
+* target.root missing → error
+* global_root missing → error
 * Permission errors (read_dir/copy/exec) propagate
 * Invalid target name → exit code 3
 * Skill directory is a **symlink** → error
@@ -143,4 +144,4 @@ Keep the file structure minimal (e.g. a single `SKILL.md` plus an optional file)
 * `cargo fmt` / `cargo clippy` / `cargo test` pass
 * `status` table output is not broken (columns/headers)
 * Dry-run immutability is covered by integration tests
-* README has minimal usage (targets/status/push/import/diff)
+* README has minimal usage (targets/status/doctor/push/import/diff)
