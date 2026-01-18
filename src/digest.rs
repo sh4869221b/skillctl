@@ -253,6 +253,18 @@ mod tests {
         assert_eq!(first, second);
     }
 
+    #[test]
+    fn digest_distinguishes_nested_paths() {
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        fs::create_dir_all(dir_a.path().join("a")).unwrap();
+        fs::write(dir_a.path().join("a/b.txt"), "x").unwrap();
+        fs::write(dir_b.path().join("ab.txt"), "x").unwrap();
+        let first = digest_dir(dir_a.path(), HashAlgo::Blake3, None).unwrap();
+        let second = digest_dir(dir_b.path(), HashAlgo::Blake3, None).unwrap();
+        assert_ne!(first, second);
+    }
+
     proptest! {
         #[test]
         fn digest_stable_for_same_content(bytes in proptest::collection::vec(any::<u8>(), 0..256)) {

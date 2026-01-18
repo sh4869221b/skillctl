@@ -445,6 +445,60 @@ command = []
     }
 
     #[test]
+    fn config_default_diff_command_is_set() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+global_root = "/tmp/global"
+
+[[targets]]
+name = "t1"
+root = "/tmp/skills"
+"#,
+        );
+        let config = Config::load_from_path(&path).unwrap();
+        assert_eq!(
+            config.diff.command,
+            vec![
+                "git".to_string(),
+                "diff".to_string(),
+                "--no-index".to_string(),
+                "--".to_string(),
+                "{left}".to_string(),
+                "{right}".to_string(),
+            ]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_errors_when_permission_denied() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let _lock = env_lock();
+        let _lang = EnvGuard::set("SKILLCTL_LANG", "en");
+
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+global_root = "/tmp/global"
+
+[[targets]]
+name = "t1"
+root = "/tmp/skills"
+"#,
+        );
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).unwrap();
+        if fs::read_to_string(&path).is_ok() {
+            return;
+        }
+        let err = Config::load_from_path(&path).unwrap_err();
+        assert!(err.to_string().contains("Cannot read config file"));
+    }
+
+    #[test]
     fn config_expands_tilde_paths() {
         let dir = TempDir::new().unwrap();
         let path = write_config(

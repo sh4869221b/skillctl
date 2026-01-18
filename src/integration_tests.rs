@@ -9,7 +9,7 @@ use crate::diff::run_diff;
 use crate::digest::digest_dir;
 use crate::error::AppError;
 use crate::status::{State, list_skills, status_for_target};
-use crate::sync::{Selection, execute_plan, plan_import, plan_push};
+use crate::sync::{PlanKind, Selection, execute_plan, plan_import, plan_push};
 
 fn make_config(global_root: PathBuf, target_root: PathBuf) -> Config {
     Config {
@@ -111,6 +111,58 @@ fn push_rejects_invalid_skill_name() {
 }
 
 #[test]
+fn push_selection_one_missing_in_global_errors_even_if_other_exists() {
+    let global_dir = TempDir::new().unwrap();
+    let target_dir = TempDir::new().unwrap();
+    let global_root = global_dir.path();
+    let target_root = target_dir.path();
+
+    write_file(&global_root.join("other/file.txt"), "g");
+    write_file(&target_root.join("other/file.txt"), "t");
+
+    let config = make_config(global_root.to_path_buf(), target_root.to_path_buf());
+    let target = &config.targets[0];
+
+    let err = plan_push(&config, target, Selection::One("missing"), false).unwrap_err();
+    assert!(matches!(err, AppError::Exec { .. }));
+}
+
+#[test]
+fn push_selection_one_prune_requires_target_skill() {
+    let global_dir = TempDir::new().unwrap();
+    let target_dir = TempDir::new().unwrap();
+    let global_root = global_dir.path();
+    let target_root = target_dir.path();
+
+    write_file(&global_root.join("other/file.txt"), "g");
+    write_file(&target_root.join("other/file.txt"), "t");
+
+    let config = make_config(global_root.to_path_buf(), target_root.to_path_buf());
+    let target = &config.targets[0];
+
+    let err = plan_push(&config, target, Selection::One("missing"), true).unwrap_err();
+    assert!(matches!(err, AppError::Exec { .. }));
+}
+
+#[test]
+fn push_selection_one_prune_allows_target_only() {
+    let global_dir = TempDir::new().unwrap();
+    let target_dir = TempDir::new().unwrap();
+    let global_root = global_dir.path();
+    let target_root = target_dir.path();
+
+    write_file(&global_root.join("other/file.txt"), "g");
+    write_file(&target_root.join("only_target/file.txt"), "t");
+
+    let config = make_config(global_root.to_path_buf(), target_root.to_path_buf());
+    let target = &config.targets[0];
+
+    let plan = plan_push(&config, target, Selection::One("only_target"), true).unwrap();
+    assert_eq!(plan.ops.len(), 1);
+    assert_eq!(plan.ops[0].kind, PlanKind::Prune);
+}
+
+#[test]
 fn push_execute_converges() {
     let global_dir = TempDir::new().unwrap();
     let target_dir = TempDir::new().unwrap();
@@ -180,6 +232,22 @@ fn import_execute_add_only() {
 
     assert_eq!(before, after);
     assert!(global_root.join("skill_extra").is_dir());
+}
+
+#[test]
+fn import_selection_one_missing_in_target_errors_even_if_other_exists() {
+    let global_dir = TempDir::new().unwrap();
+    let target_dir = TempDir::new().unwrap();
+    let global_root = global_dir.path();
+    let target_root = target_dir.path();
+
+    write_file(&target_root.join("other/file.txt"), "t");
+
+    let config = make_config(global_root.to_path_buf(), target_root.to_path_buf());
+    let target = &config.targets[0];
+
+    let err = plan_import(&config, target, Selection::One("missing"), false).unwrap_err();
+    assert!(matches!(err, AppError::Exec { .. }));
 }
 
 #[test]
