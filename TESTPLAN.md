@@ -68,6 +68,8 @@ Keep the file structure minimal (e.g. a single `SKILL.md` plus an optional file)
 * Invalid `hash.algo` → error
 * Invalid ignore glob → error
 * Empty diff.command → error (or at diff execution; define in spec)
+* Missing `{left}` or `{right}` in diff.command → config error (exit code 3)
+* Language selection priority follows `SKILLCTL_LANG` > `LC_ALL` > `LC_MESSAGES` > `LANG` (default `ja`)
 
 ### 4.3 state determination
 
@@ -123,6 +125,7 @@ Keep the file structure minimal (e.g. a single `SKILL.md` plus an optional file)
 ### 5.7 doctor
 
 * CLI reports missing `SKILL.md` for a target/global root
+* Target skill path that is a symlink is reported as error
 * Output includes summary (`checked`, `issues`)
 
 ---

@@ -50,6 +50,7 @@
 ### 4.2 Target
 
 * `targets[].root/<skill_id>/...`
+* `targets[].root/<skill_id>` must be a **normal directory** (no symlinks)
 
 Codex/OpenCode-specific discovery paths are **not** assumed by this tool
 (targets are fully user-defined).
@@ -181,7 +182,8 @@ Priority order:
 
 ## 9. diff specification
 
-* `diff.command` is argv with `{left}` `{right}` placeholders
+* `diff.command` is argv and must include both `{left}` and `{right}` at least once
+* If either placeholder is missing, return a config error (exit code 3)
 * `skillctl diff <skill> --target <name>` replaces placeholders and runs it
 * If either path is missing, return an error with next action guidance
 * Diff exit codes: treat **0/1 as success**, others as error
@@ -231,6 +233,8 @@ Priority order:
 * After `push`, target skills converge to `same`
 * `import` defaults to add-only, `--overwrite` replaces
 * `diff` can run the configured command
+* `doctor` outputs `ok/issue` lines per skill and summary `checked/issues` per root
+* Language selection follows `SKILLCTL_LANG` > `LC_ALL` > `LC_MESSAGES` > `LANG`, default `ja`
 
 ---
 
