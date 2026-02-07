@@ -197,4 +197,22 @@ mod tests {
         let report = doctor_root(root).unwrap();
         assert_eq!(report.issues.len(), 1);
     }
+
+    #[cfg(unix)]
+    #[test]
+    fn doctor_reports_unsupported_file_type() {
+        use std::os::unix::net::UnixListener;
+
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join("skill1")).unwrap();
+        fs::write(root.join("skill1/SKILL.md"), "ok").unwrap();
+        let socket_path = root.join("skill1/socket.sock");
+        let _listener = UnixListener::bind(&socket_path).unwrap();
+
+        let report = doctor_root(root).unwrap();
+        assert_eq!(report.issues.len(), 1);
+        let message = &report.issues[0].message;
+        assert!(message.contains("未対応") || message.contains("Unsupported"));
+    }
 }

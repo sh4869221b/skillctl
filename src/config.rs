@@ -174,6 +174,20 @@ impl Config {
                 )),
             ));
         }
+        let has_left = self.diff.command.iter().any(|arg| arg.contains("{left}"));
+        let has_right = self.diff.command.iter().any(|arg| arg.contains("{right}"));
+        if !has_left || !has_right {
+            return Err(AppError::config(
+                crate::tr!(
+                    "diff.command に {{left}} と {{right}} が必要です",
+                    "diff.command must include {{left}} and {{right}}"
+                ),
+                Some(crate::tr!(
+                    "config.toml の diff.command に両方のプレースホルダを含めてください",
+                    "Include both placeholders in diff.command in config.toml"
+                )),
+            ));
+        }
         for pattern in &self.hash.ignore {
             Glob::new(pattern).map_err(|err| {
                 AppError::config(
@@ -438,6 +452,26 @@ root = "/tmp/skills"
 
 [diff]
 command = []
+"#,
+        );
+        let err = Config::load_from_path(&path).unwrap_err();
+        assert!(matches!(err, AppError::Config { .. }));
+    }
+
+    #[test]
+    fn config_errors_when_diff_command_missing_placeholder() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+global_root = "/tmp/global"
+
+[[targets]]
+name = "t1"
+root = "/tmp/skills"
+
+[diff]
+command = ["git", "diff", "--no-index", "--", "/tmp/a", "{right}"]
 "#,
         );
         let err = Config::load_from_path(&path).unwrap_err();

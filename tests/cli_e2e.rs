@@ -131,12 +131,12 @@ fn setup_fixture_with_diff_command(diff_command: &[&str]) -> (TempDir, PathBuf, 
 
 #[cfg(windows)]
 fn diff_exit_one_command() -> Vec<&'static str> {
-    vec!["cmd", "/C", "exit 1"]
+    vec!["cmd", "/C", "exit 1", "{left}", "{right}"]
 }
 
 #[cfg(not(windows))]
 fn diff_exit_one_command() -> Vec<&'static str> {
-    vec!["sh", "-c", "exit 1"]
+    vec!["sh", "-c", "exit 1", "--", "{left}", "{right}"]
 }
 
 #[test]
