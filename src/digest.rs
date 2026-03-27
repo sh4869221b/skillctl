@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
@@ -91,19 +92,18 @@ pub fn digest_dir(path: &Path, algo: HashAlgo, ignore: Option<&GlobSet>) -> AppR
                 Some(err.to_string()),
             )
         })?;
-        let rel_string = normalize_rel_path(rel);
         if let Some(set) = ignore
-            && set.is_match(&rel_string)
+            && set.is_match(rel)
         {
             continue;
         }
-        files.push((rel_string, entry.path().to_path_buf()));
+        files.push((rel.to_path_buf(), entry.path().to_path_buf()));
     }
-    files.sort_by(|a, b| a.0.cmp(&b.0));
+    files.sort_by(|a, b| compare_rel_paths(&a.0, &b.0));
 
     let mut hasher = DigestHasher::new(algo);
     for (rel, full) in files {
-        hasher.update(rel.as_bytes());
+        hash_rel_path(&mut hasher, &rel);
         hasher.update(b"\0");
         hash_file(&mut hasher, &full)?;
         hasher.update(b"\0");
@@ -119,15 +119,59 @@ pub fn short_digest(digest: &str) -> String {
     }
 }
 
-fn normalize_rel_path(path: &Path) -> String {
-    let mut out = String::new();
-    for (i, part) in path.components().enumerate() {
-        if i > 0 {
-            out.push('/');
+fn compare_rel_paths(a: &Path, b: &Path) -> Ordering {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+
+        let mut a_components = a.components();
+        let mut b_components = b.components();
+        loop {
+            match (a_components.next(), b_components.next()) {
+                (Some(left), Some(right)) => {
+                    let ordering = left
+                        .as_os_str()
+                        .as_bytes()
+                        .cmp(right.as_os_str().as_bytes());
+                    if ordering != Ordering::Equal {
+                        return ordering;
+                    }
+                }
+                (None, Some(_)) => return Ordering::Less,
+                (Some(_), None) => return Ordering::Greater,
+                (None, None) => return Ordering::Equal,
+            }
         }
-        out.push_str(part.as_os_str().to_string_lossy().as_ref());
     }
-    out
+    #[cfg(not(unix))]
+    {
+        a.cmp(b)
+    }
+}
+
+fn hash_rel_path(hasher: &mut DigestHasher, path: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+
+        for (index, part) in path.components().enumerate() {
+            if index > 0 {
+                hasher.update(b"/");
+            }
+            hasher.update(part.as_os_str().as_bytes());
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let mut out = String::new();
+        for (index, part) in path.components().enumerate() {
+            if index > 0 {
+                out.push('/');
+            }
+            out.push_str(part.as_os_str().to_string_lossy().as_ref());
+        }
+        hasher.update(out.as_bytes());
+    }
 }
 
 fn hash_file(hasher: &mut DigestHasher, path: &Path) -> AppResult<()> {
@@ -244,7 +288,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("a.txt"), "hello").unwrap();
         fs::write(dir.path().join("skip.tmp"), "noise").unwrap();
-        let ignore = build_ignore_set(&vec!["**/*.tmp".to_string()])
+        let ignore = build_ignore_set(&["**/*.tmp".to_string()])
             .unwrap()
             .unwrap();
         let first = digest_dir(dir.path(), HashAlgo::Blake3, Some(&ignore)).unwrap();
@@ -262,6 +306,26 @@ mod tests {
         fs::write(dir_b.path().join("ab.txt"), "x").unwrap();
         let first = digest_dir(dir_a.path(), HashAlgo::Blake3, None).unwrap();
         let second = digest_dir(dir_b.path(), HashAlgo::Blake3, None).unwrap();
+        assert_ne!(first, second);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn digest_distinguishes_non_utf8_relative_paths() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        let file_a = dir_a.path().join(OsString::from_vec(vec![0xff]));
+        let file_b = dir_b.path().join(OsString::from_vec(vec![0xfe]));
+
+        fs::write(&file_a, "x").unwrap();
+        fs::write(&file_b, "x").unwrap();
+
+        let first = digest_dir(dir_a.path(), HashAlgo::Blake3, None).unwrap();
+        let second = digest_dir(dir_b.path(), HashAlgo::Blake3, None).unwrap();
+
         assert_ne!(first, second);
     }
 

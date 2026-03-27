@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 
 use tempfile::TempDir;
 
@@ -9,7 +10,10 @@ use crate::diff::run_diff;
 use crate::digest::digest_dir;
 use crate::error::AppError;
 use crate::status::{State, list_skills, status_for_target};
-use crate::sync::{PlanKind, Selection, execute_plan, plan_import, plan_push};
+use crate::sync::{
+    PlanKind, Selection, execute_plan, fail_next_publish_rename_for_test,
+    fail_next_restore_rename_for_test, plan_import, plan_push,
+};
 
 fn make_config(global_root: PathBuf, target_root: PathBuf) -> Config {
     Config {
@@ -43,6 +47,11 @@ fn snapshot_root(root: &Path, algo: HashAlgo) -> Vec<(String, String)> {
         out.push((skill, digest));
     }
     out
+}
+
+fn sync_test_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
 }
 
 #[cfg(windows)]
@@ -104,6 +113,74 @@ fn push_dry_run_is_immutable() {
     execute_plan(&plan, true).unwrap();
     let after = snapshot_root(target_root, config.hash.algo);
     assert_eq!(before, after);
+}
+
+#[test]
+fn replace_dir_keeps_existing_dest_when_final_swap_fails() {
+    let _lock = sync_test_lock();
+    let global_dir = TempDir::new().unwrap();
+    let target_dir = TempDir::new().unwrap();
+    let global_root = global_dir.path();
+    let target_root = target_dir.path();
+
+    write_file(&global_root.join("skill_diff/file.txt"), "global");
+    write_file(&target_root.join("skill_diff/file.txt"), "target");
+
+    let config = make_config(global_root.to_path_buf(), target_root.to_path_buf());
+    let target = &config.targets[0];
+    let plan = plan_push(&config, target, Selection::All, false).unwrap();
+
+    fail_next_publish_rename_for_test();
+    let err = execute_plan(&plan, false).unwrap_err();
+
+    assert!(matches!(err, AppError::Exec { .. }));
+    let restored = fs::read_to_string(target_root.join("skill_diff/file.txt")).unwrap();
+    assert_eq!(restored, "target");
+}
+
+#[test]
+fn replace_dir_reports_manual_recovery_when_restore_fails() {
+    let _lock = sync_test_lock();
+    let global_dir = TempDir::new().unwrap();
+    let target_dir = TempDir::new().unwrap();
+    let global_root = global_dir.path();
+    let target_root = target_dir.path();
+
+    write_file(&global_root.join("skill_diff/file.txt"), "global");
+    write_file(&target_root.join("skill_diff/file.txt"), "target");
+
+    let config = make_config(global_root.to_path_buf(), target_root.to_path_buf());
+    let target = &config.targets[0];
+    let plan = plan_push(&config, target, Selection::All, false).unwrap();
+
+    fail_next_publish_rename_for_test();
+    fail_next_restore_rename_for_test();
+    let err = execute_plan(&plan, false).unwrap_err();
+
+    let hint = err.hint().unwrap_or_default();
+    assert!(hint.contains("Manually rename") || hint.contains("手動で"));
+    assert!(target_root.join(".skillctl-backup-skill_diff-0").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn diff_rejects_symlink_skill_root() {
+    use std::os::unix::fs::symlink;
+
+    let global_dir = TempDir::new().unwrap();
+    let target_dir = TempDir::new().unwrap();
+    let global_root = global_dir.path();
+    let target_root = target_dir.path();
+
+    write_file(&global_root.join("skill_link/file.txt"), "g");
+    let target_skill = target_root.join("skill_link");
+    symlink(global_root.join("skill_link"), &target_skill).unwrap();
+
+    let config = make_config(global_root.to_path_buf(), target_root.to_path_buf());
+    let target = &config.targets[0];
+
+    let err = run_diff(&config, target, "skill_link").unwrap_err();
+    assert!(matches!(err, AppError::Exec { .. }));
 }
 
 #[test]

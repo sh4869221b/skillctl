@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::Path;
 use std::process::Command;
 
@@ -9,19 +10,8 @@ pub fn run_diff(config: &Config, target: &Target, skill: &str) -> AppResult<()> 
     validate_skill_id(skill)?;
     let left = config.global_root.join(skill);
     let right = target.root.join(skill);
-    if !left.is_dir() || !right.is_dir() {
-        return Err(AppError::exec(
-            crate::tr!(
-                "diff の対象パスが存在しません: {}",
-                "Diff target path does not exist: {}",
-                skill
-            ),
-            Some(crate::tr!(
-                "push/import を実行してから再度 diff してください",
-                "Run push/import before diff."
-            )),
-        ));
-    }
+    ensure_normal_skill_dir(&left, skill)?;
+    ensure_normal_skill_dir(&right, skill)?;
     let command = &config.diff.command;
     if command.is_empty() {
         return Err(AppError::config(
@@ -89,4 +79,52 @@ pub fn run_diff(config: &Config, target: &Target, skill: &str) -> AppResult<()> 
 
 fn path_to_arg(path: &Path) -> String {
     path.to_string_lossy().to_string()
+}
+
+fn ensure_normal_skill_dir(path: &Path, skill: &str) -> AppResult<()> {
+    let metadata = fs::symlink_metadata(path).map_err(|err| {
+        let hint = if err.kind() == std::io::ErrorKind::NotFound {
+            crate::tr!(
+                "push/import を実行してから再度 diff してください",
+                "Run push/import before diff."
+            )
+        } else {
+            err.to_string()
+        };
+        AppError::exec(
+            crate::tr!(
+                "diff の対象パスが存在しません: {}",
+                "Diff target path does not exist: {}",
+                skill
+            ),
+            Some(hint),
+        )
+    })?;
+    if metadata.file_type().is_symlink() {
+        return Err(AppError::exec(
+            crate::tr!(
+                "diff の対象は通常ディレクトリである必要があります: {}",
+                "Diff target must be a normal directory: {}",
+                path.display()
+            ),
+            Some(crate::tr!(
+                "シンボリックリンクではなく通常の skill ディレクトリを配置してください",
+                "Use a normal skill directory instead of a symlink."
+            )),
+        ));
+    }
+    if !metadata.is_dir() {
+        return Err(AppError::exec(
+            crate::tr!(
+                "diff の対象はディレクトリである必要があります: {}",
+                "Diff target must be a directory: {}",
+                path.display()
+            ),
+            Some(crate::tr!(
+                "skill ディレクトリが存在することを確認してください",
+                "Confirm the skill directory exists."
+            )),
+        ));
+    }
+    Ok(())
 }

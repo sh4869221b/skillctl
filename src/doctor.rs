@@ -7,7 +7,7 @@ use walkdir::WalkDir;
 
 use crate::error::{AppError, AppResult};
 use crate::skill::validate_skill_id;
-use crate::status::list_skills;
+use crate::status::{RootEntryKind, root_entries};
 
 #[derive(Debug, Clone)]
 pub struct DoctorIssue {
@@ -23,18 +23,32 @@ pub struct DoctorReport {
 }
 
 pub fn doctor_root(root: &Path) -> AppResult<DoctorReport> {
-    let skills = list_skills(root)?;
+    let entries = root_entries(root)?;
+    let skills = entries
+        .iter()
+        .map(|entry| entry.name.clone())
+        .collect::<Vec<_>>();
     let mut issues = Vec::new();
-    for skill in &skills {
-        if let Err(err) = validate_skill_id(skill) {
+    for entry in entries {
+        let skill = entry.name;
+        if entry.kind == RootEntryKind::Symlink {
             issues.push(DoctorIssue {
-                skill: skill.to_string(),
+                skill,
+                message: crate::tr!(
+                    "シンボリックリンクは未対応です",
+                    "Symlinks are not supported"
+                ),
+            });
+            continue;
+        }
+        if let Err(err) = validate_skill_id(&skill) {
+            issues.push(DoctorIssue {
+                skill: skill.clone(),
                 message: err.to_string(),
             });
         }
-        let skill_root = root.join(skill);
-        check_skill_md(&skill_root, skill, &mut issues)?;
-        check_skill_contents(&skill_root, skill, &mut issues)?;
+        check_skill_md(&entry.path, &skill, &mut issues)?;
+        check_skill_contents(&entry.path, &skill, &mut issues)?;
     }
     Ok(DoctorReport {
         root: root.to_path_buf(),
@@ -178,6 +192,33 @@ mod tests {
 
         let report = doctor_root(root).unwrap();
         assert_eq!(report.issues.len(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn doctor_reports_root_symlink_skill_instead_of_aborting() {
+        use std::os::unix::fs::symlink;
+
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join("real-skill")).unwrap();
+        fs::write(root.join("real-skill/SKILL.md"), "ok").unwrap();
+        symlink(root.join("real-skill"), root.join("link-skill")).unwrap();
+
+        let report = doctor_root(root).unwrap();
+
+        assert!(report.skills.iter().any(|skill| skill == "real-skill"));
+        assert!(report.skills.iter().any(|skill| skill == "link-skill"));
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|issue| issue.skill == "link-skill" && issue.message.contains("リンク"))
+                || report
+                    .issues
+                    .iter()
+                    .any(|issue| issue.skill == "link-skill" && issue.message.contains("Symlink"))
+        );
     }
 
     #[cfg(unix)]

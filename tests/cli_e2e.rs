@@ -30,6 +30,33 @@ root = "{}"
     fs::write(path, body).unwrap();
 }
 
+fn write_config_two_targets(
+    path: &Path,
+    global_root: &Path,
+    first_target_root: &Path,
+    second_target_root: &Path,
+) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    let body = format!(
+        r#"global_root = "{}"
+
+[[targets]]
+name = "t1"
+root = "{}"
+
+[[targets]]
+name = "t2"
+root = "{}"
+"#,
+        escape_toml_path(global_root),
+        escape_toml_path(first_target_root),
+        escape_toml_path(second_target_root)
+    );
+    fs::write(path, body).unwrap();
+}
+
 fn write_config_with_diff_command(
     path: &Path,
     global_root: &Path,
@@ -129,6 +156,30 @@ fn setup_fixture_with_diff_command(diff_command: &[&str]) -> (TempDir, PathBuf, 
     (root, global_root, target_root, config_path)
 }
 
+fn setup_fixture_two_targets() -> (TempDir, PathBuf, PathBuf, PathBuf, PathBuf) {
+    let root = TempDir::new().unwrap();
+    let global_root = root.path().join("global");
+    let target_one_root = root.path().join("target-one");
+    let target_two_root = root.path().join("target-two");
+    let config_path = root.path().join("config.toml");
+    fs::create_dir_all(&global_root).unwrap();
+    fs::create_dir_all(&target_one_root).unwrap();
+    fs::create_dir_all(&target_two_root).unwrap();
+    write_config_two_targets(
+        &config_path,
+        &global_root,
+        &target_one_root,
+        &target_two_root,
+    );
+    (
+        root,
+        global_root,
+        target_one_root,
+        target_two_root,
+        config_path,
+    )
+}
+
 #[cfg(windows)]
 fn diff_exit_one_command() -> Vec<&'static str> {
     vec!["cmd", "/C", "exit 1", "{left}", "{right}"]
@@ -169,7 +220,7 @@ fn push_dry_run_snapshot() {
     write_file(&global_root.join("skill_missing/file.txt"), "m");
     write_file(&target_root.join("skill_extra/file.txt"), "e");
 
-    let before = snapshot_dir(&target_root);
+    let before = snapshot_dir(global_root.parent().unwrap());
     let mut cmd = cargo_bin_cmd!("skillctl");
     set_config_env(&mut cmd, &config_path);
     cmd.arg("push")
@@ -181,8 +232,29 @@ fn push_dry_run_snapshot() {
     let output = cmd.assert().success().get_output().stdout.clone();
     let stdout = normalize_output(&output);
     insta::assert_snapshot!(stdout);
-    let after = snapshot_dir(&target_root);
+    let after = snapshot_dir(global_root.parent().unwrap());
     assert_eq!(before, after);
+}
+
+#[test]
+fn status_all_outputs_table_snapshot() {
+    let (_root, global_root, target_one_root, target_two_root, config_path) =
+        setup_fixture_two_targets();
+
+    write_file(&global_root.join("skill_same/file.txt"), "same");
+    write_file(&global_root.join("skill_missing/file.txt"), "m");
+    write_file(&target_one_root.join("skill_same/file.txt"), "same");
+    write_file(&target_one_root.join("skill_diff/file.txt"), "t1");
+    write_file(&global_root.join("skill_diff/file.txt"), "g");
+    write_file(&target_two_root.join("skill_same/file.txt"), "same");
+    write_file(&target_two_root.join("skill_extra/file.txt"), "e");
+
+    let mut cmd = cargo_bin_cmd!("skillctl");
+    set_config_env(&mut cmd, &config_path);
+    cmd.arg("status").arg("--all");
+    let output = cmd.assert().success().get_output().stdout.clone();
+    let stdout = normalize_output(&output);
+    insta::assert_snapshot!(stdout);
 }
 
 #[test]
@@ -233,6 +305,24 @@ fn doctor_global_snapshot() {
     let mut cmd = cargo_bin_cmd!("skillctl");
     set_config_env(&mut cmd, &config_path);
     cmd.arg("doctor").arg("--global");
+    let output = cmd.assert().success().get_output().stdout.clone();
+    let stdout = normalize_output(&output);
+    insta::assert_snapshot!(stdout);
+}
+
+#[test]
+fn doctor_all_snapshot() {
+    let (_root, global_root, target_one_root, target_two_root, config_path) =
+        setup_fixture_two_targets();
+
+    write_file(&global_root.join("unused/SKILL.md"), "ok");
+    write_file(&target_one_root.join("a_missing/notes.txt"), "x");
+    write_file(&target_one_root.join("b_ok/SKILL.md"), "ok");
+    write_file(&target_two_root.join("c_ok/SKILL.md"), "ok");
+
+    let mut cmd = cargo_bin_cmd!("skillctl");
+    set_config_env(&mut cmd, &config_path);
+    cmd.arg("doctor").arg("--all");
     let output = cmd.assert().success().get_output().stdout.clone();
     let stdout = normalize_output(&output);
     insta::assert_snapshot!(stdout);

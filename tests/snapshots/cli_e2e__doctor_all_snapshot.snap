@@ -1,0 +1,11 @@
+---
+source: tests/cli_e2e.rs
+expression: stdout
+---
+ターゲット: t1
+issue a_missing SKILL.md が見つかりません
+ok b_ok
+checked: 2 issues: 1
+ターゲット: t2
+ok c_ok
+checked: 1 issues: 0

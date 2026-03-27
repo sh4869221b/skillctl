@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 
 use tempfile::TempDir;
@@ -310,6 +311,64 @@ pub fn summarize_plan(plan: &Plan) -> Vec<String> {
     lines
 }
 
+#[cfg(test)]
+#[derive(Debug, Default)]
+struct RenameTestHooks {
+    fail_publish_once: bool,
+    fail_restore_once: bool,
+}
+
+#[cfg(test)]
+fn rename_test_hooks() -> &'static std::sync::Mutex<RenameTestHooks> {
+    static HOOKS: std::sync::OnceLock<std::sync::Mutex<RenameTestHooks>> =
+        std::sync::OnceLock::new();
+    HOOKS.get_or_init(|| std::sync::Mutex::new(RenameTestHooks::default()))
+}
+
+#[cfg(test)]
+pub(crate) fn fail_next_publish_rename_for_test() {
+    let mut hooks = rename_test_hooks().lock().unwrap();
+    hooks.fail_publish_once = true;
+}
+
+#[cfg(test)]
+pub(crate) fn fail_next_restore_rename_for_test() {
+    let mut hooks = rename_test_hooks().lock().unwrap();
+    hooks.fail_restore_once = true;
+}
+
+#[cfg(test)]
+fn maybe_fail_rename_for_test(phase: RenamePhase) -> io::Result<()> {
+    let mut hooks = rename_test_hooks().lock().unwrap();
+    let should_fail = match phase {
+        RenamePhase::Publish => &mut hooks.fail_publish_once,
+        RenamePhase::Restore => &mut hooks.fail_restore_once,
+        RenamePhase::Backup => return Ok(()),
+    };
+    if *should_fail {
+        *should_fail = false;
+        Err(io::Error::other(format!(
+            "forced {:?} rename failure",
+            phase
+        )))
+    } else {
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum RenamePhase {
+    Backup,
+    Publish,
+    Restore,
+}
+
+fn rename_dir(from: &Path, to: &Path, _phase: RenamePhase) -> io::Result<()> {
+    #[cfg(test)]
+    maybe_fail_rename_for_test(_phase)?;
+    fs::rename(from, to)
+}
+
 fn replace_dir(src: &Path, dest: &Path) -> AppResult<()> {
     let parent = dest.parent().ok_or_else(|| {
         AppError::exec(
@@ -335,29 +394,130 @@ fn replace_dir(src: &Path, dest: &Path) -> AppResult<()> {
         )
     })?;
     copy_dir(src, temp_dir.path())?;
-    if dest.exists() {
-        fs::remove_dir_all(dest).map_err(|err| {
+    let backup_path = if dest.exists() {
+        let backup = next_backup_path(dest)?;
+        rename_dir(dest, &backup, RenamePhase::Backup).map_err(|err| {
             AppError::exec(
                 crate::tr!(
-                    "既存ディレクトリの削除に失敗しました: {}",
-                    "Failed to remove existing directory: {}",
+                    "既存ディレクトリの退避に失敗しました: {}",
+                    "Failed to back up existing directory: {}",
                     dest.display()
                 ),
                 Some(err.to_string()),
             )
         })?;
+        Some(backup)
+    } else {
+        None
+    };
+
+    match rename_dir(temp_dir.path(), dest, RenamePhase::Publish) {
+        Ok(()) => {
+            if let Some(backup) = backup_path {
+                fs::remove_dir_all(&backup).map_err(|err| {
+                    AppError::exec(
+                        crate::tr!(
+                            "バックアップの削除に失敗しました: {}",
+                            "Failed to remove backup directory: {}",
+                            backup.display()
+                        ),
+                        Some(err.to_string()),
+                    )
+                })?;
+            }
+            Ok(())
+        }
+        Err(publish_err) => {
+            if let Some(backup) = backup_path {
+                match rename_dir(&backup, dest, RenamePhase::Restore) {
+                    Ok(()) => Err(AppError::exec(
+                        crate::tr!(
+                            "ディレクトリの置換に失敗しました: {}",
+                            "Failed to replace directory: {}",
+                            dest.display()
+                        ),
+                        Some(publish_err.to_string()),
+                    )),
+                    Err(restore_err) => Err(AppError::exec(
+                        crate::tr!(
+                            "ディレクトリの置換と復旧に失敗しました: {}",
+                            "Failed to replace and restore directory: {}",
+                            dest.display()
+                        ),
+                        Some(format!(
+                            "{}; {}. {}",
+                            publish_err,
+                            restore_err,
+                            crate::tr!(
+                                "手動で {} を {} に戻してください",
+                                "Manually rename {} back to {}.",
+                                backup.display(),
+                                dest.display()
+                            )
+                        )),
+                    )),
+                }
+            } else {
+                Err(AppError::exec(
+                    crate::tr!(
+                        "ディレクトリの置換に失敗しました: {}",
+                        "Failed to replace directory: {}",
+                        dest.display()
+                    ),
+                    Some(publish_err.to_string()),
+                ))
+            }
+        }
     }
-    fs::rename(temp_dir.path(), dest).map_err(|err| {
+}
+
+fn next_backup_path(dest: &Path) -> AppResult<PathBuf> {
+    let parent = dest.parent().ok_or_else(|| {
         AppError::exec(
             crate::tr!(
-                "ディレクトリの置換に失敗しました: {}",
-                "Failed to replace directory: {}",
+                "親ディレクトリを特定できません: {}",
+                "Failed to determine parent directory: {}",
                 dest.display()
             ),
-            Some(err.to_string()),
+            Some(crate::tr!(
+                "dest パスを確認してください",
+                "Check the dest path."
+            )),
         )
     })?;
-    Ok(())
+    let base = dest
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .ok_or_else(|| {
+            AppError::exec(
+                crate::tr!(
+                    "ディレクトリ名を特定できません: {}",
+                    "Failed to determine directory name: {}",
+                    dest.display()
+                ),
+                Some(crate::tr!(
+                    "dest パスを確認してください",
+                    "Check the dest path."
+                )),
+            )
+        })?;
+    for attempt in 0..1024 {
+        let candidate = parent.join(format!(".skillctl-backup-{base}-{attempt}"));
+        if !candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+    Err(AppError::exec(
+        crate::tr!(
+            "バックアップパスを作成できません: {}",
+            "Failed to allocate backup path: {}",
+            dest.display()
+        ),
+        Some(crate::tr!(
+            "親ディレクトリ内の .skillctl-backup-* を確認してください",
+            "Check existing .skillctl-backup-* entries in the parent directory."
+        )),
+    ))
 }
 
 fn copy_dir(src: &Path, dest: &Path) -> AppResult<()> {

@@ -32,7 +32,7 @@ fn parse_lang(value: &str) -> Lang {
     let lang = primary.split(['_', '-'].as_ref()).next().unwrap_or("");
     match lang {
         "ja" => Lang::Ja,
-        "en" | "c" | "posix" => Lang::En,
+        "en" => Lang::En,
         _ => Lang::Ja,
     }
 }
@@ -148,6 +148,17 @@ mod tests {
     fn current_lang_defaults_to_ja_on_unsupported() {
         let _lock = env_lock();
         let _skillctl = EnvGuard::set("SKILLCTL_LANG", "fr_FR");
+
+        assert_eq!(current_lang(), Lang::Ja);
+    }
+
+    #[test]
+    fn current_lang_defaults_to_ja_for_c_locale() {
+        let _lock = env_lock();
+        let _skillctl = EnvGuard::remove("SKILLCTL_LANG");
+        let _lc_all = EnvGuard::set("LC_ALL", "C");
+        let _lc_messages = EnvGuard::remove("LC_MESSAGES");
+        let _lang = EnvGuard::remove("LANG");
 
         assert_eq!(current_lang(), Lang::Ja);
     }

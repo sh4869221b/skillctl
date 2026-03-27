@@ -38,9 +38,22 @@ pub struct StatusRow {
     pub target_digest: Option<String>,
 }
 
-pub fn list_skills(root: &Path) -> AppResult<Vec<String>> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RootEntryKind {
+    Directory,
+    Symlink,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct RootEntry {
+    pub name: String,
+    pub path: std::path::PathBuf,
+    pub kind: RootEntryKind,
+}
+
+pub(crate) fn root_entries(root: &Path) -> AppResult<Vec<RootEntry>> {
     ensure_root_dir(root)?;
-    let mut skills = Vec::new();
+    let mut entries = Vec::new();
     for entry in fs::read_dir(root).map_err(|err| {
         AppError::config(
             crate::tr!(
@@ -72,12 +85,36 @@ pub fn list_skills(root: &Path) -> AppResult<Vec<String>> {
                 Some(err.to_string()),
             )
         })?;
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
         if file_type.is_symlink() {
+            entries.push(RootEntry {
+                name: name.to_string(),
+                path,
+                kind: RootEntryKind::Symlink,
+            });
+        } else if file_type.is_dir() {
+            entries.push(RootEntry {
+                name: name.to_string(),
+                path,
+                kind: RootEntryKind::Directory,
+            });
+        }
+    }
+    entries.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(entries)
+}
+
+pub fn list_skills(root: &Path) -> AppResult<Vec<String>> {
+    let mut skills = Vec::new();
+    for entry in root_entries(root)? {
+        if entry.kind == RootEntryKind::Symlink {
             return Err(AppError::exec(
                 crate::tr!(
                     "シンボリックリンクは未対応です: {}",
                     "Symlinks are not supported: {}",
-                    path.display()
+                    entry.path.display()
                 ),
                 Some(crate::tr!(
                     "通常のディレクトリを配置してください",
@@ -85,13 +122,10 @@ pub fn list_skills(root: &Path) -> AppResult<Vec<String>> {
                 )),
             ));
         }
-        if file_type.is_dir()
-            && let Some(name) = path.file_name().and_then(|n| n.to_str())
-        {
-            skills.push(name.to_string());
+        if entry.kind == RootEntryKind::Directory {
+            skills.push(entry.name);
         }
     }
-    skills.sort();
     Ok(skills)
 }
 
